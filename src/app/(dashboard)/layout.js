@@ -298,7 +298,7 @@ export default function DashboardLayout({ children }) {
       <main className="flex-1 flex flex-col h-full overflow-hidden">
         {/* Top Header bar */}
         <header className="h-16 bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between px-6 lg:px-8 z-20">
-          {/* Left side: Hamburger Toggle & Date Badge (with Calendar icon) */}
+          {/* Left side: Hamburger Toggle */}
           <div className="flex items-center gap-3.5">
             <button
               onClick={() => setIsSidebarOpen(true)}
@@ -307,17 +307,15 @@ export default function DashboardLayout({ children }) {
             >
               <Menu className="w-5 h-5" />
             </button>
-
-            <div className="flex items-center gap-2">
-              <span className="flex items-center gap-2 text-xs font-bold bg-gradient-to-r from-blue-400 to-blue-600 text-white px-4 py-1.75 rounded-full shadow-md shadow-blue-500/10 tracking-wide">
-                <Calendar className="w-3.5 h-3.5 text-white/95" />
-                {new Date().toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
-              </span>
-            </div>
           </div>
           
-          {/* Right side: Empty */}
-          <div></div>
+          {/* Right side: Date Badge (with Calendar icon) */}
+          <div className="flex items-center gap-2">
+            <span className="flex items-center gap-2 text-xs font-bold bg-gradient-to-r from-blue-400 to-blue-600 text-white px-4 py-1.75 rounded-full shadow-md shadow-blue-500/10 tracking-wide">
+              <Calendar className="w-3.5 h-3.5 text-white/95" />
+              {new Date().toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+            </span>
+          </div>
         </header>
 
         {/* Content body scrollable */}

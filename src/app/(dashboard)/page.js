@@ -600,7 +600,7 @@ export default function DashboardPage() {
         
         {/* Daily Activity Hari Ini Summary Card */}
         <div className="bg-white dark:bg-slate-900 p-6 rounded-[28px] border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-between gap-6">
-          <div>
+          <div className="flex-1 flex flex-col">
             <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-800/80 mb-5">
               <div>
                 <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100 flex items-center gap-1.5">
@@ -616,7 +616,7 @@ export default function DashboardPage() {
                 <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
               </Link>
             </div>
-            <div className="space-y-3">
+            <div className="space-y-3 flex-1 flex flex-col justify-center">
               {[...dailyActivities]
                 .sort((a, b) => {
                   if (a.is_completed === b.is_completed) {
@@ -672,7 +672,7 @@ export default function DashboardPage() {
               ))}
 
               {dailyActivities.length === 0 && (
-                <div className="text-center py-8 bg-slate-50/40 dark:bg-slate-900/40 rounded-2xl border border-dashed border-slate-200 dark:border-slate-800">
+                <div className="flex-1 flex flex-col items-center justify-center text-center py-8 bg-slate-50/40 dark:bg-slate-900/40 rounded-2xl border border-dashed border-slate-200 dark:border-slate-800">
                   <p className="text-xs text-slate-400">Belum ada agenda untuk hari ini.</p>
                   <Link href="/daily-activity" className="text-xs text-blue-650 font-semibold mt-2 inline-block">
                     Tambah Agenda Hari Ini &rarr;
@@ -693,7 +693,7 @@ export default function DashboardPage() {
 
         {/* Today's Habits Summary Card */}
         <div className="bg-white dark:bg-slate-900 p-6 rounded-[28px] border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-between gap-6">
-          <div>
+          <div className="flex-1 flex flex-col">
             <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-800/80 mb-5">
               <div>
                 <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100">Habitz Forge Hari Ini</h2>
@@ -705,7 +705,7 @@ export default function DashboardPage() {
               </Link>
             </div>
 
-            <div className="space-y-3.5">
+            <div className="space-y-3.5 flex-1 flex flex-col justify-center">
               {habits.slice(0, 4).map((habit) => (
                 <div 
                   key={habit.id}
@@ -738,7 +738,7 @@ export default function DashboardPage() {
                 </div>
               ))}
               {habits.length === 0 && (
-                <div className="text-center py-8 bg-slate-50/40 dark:bg-slate-900/40 rounded-2xl border border-dashed border-slate-200 dark:border-slate-800">
+                <div className="flex-1 flex flex-col items-center justify-center text-center py-8 bg-slate-50/40 dark:bg-slate-900/40 rounded-2xl border border-dashed border-slate-200 dark:border-slate-800">
                   <p className="text-xs text-slate-400">Belum ada kebiasaan yang dibuat di database.</p>
                   <Link href="/habit-forge" className="text-xs text-blue-650 font-semibold mt-2 inline-block">
                     Tambah Habit Baru &rarr;
@@ -759,7 +759,7 @@ export default function DashboardPage() {
 
         {/* Academic Tasks Summary Card */}
         <div className="bg-white dark:bg-slate-900 p-6 rounded-[28px] border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-between gap-6">
-          <div>
+          <div className="flex-1 flex flex-col">
             <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-800/80 mb-5">
               <div>
                 <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100">Tugas Terdekat</h2>
@@ -771,7 +771,7 @@ export default function DashboardPage() {
               </Link>
             </div>
 
-            <div className="space-y-3.5">
+            <div className="space-y-3.5 flex-1 flex flex-col justify-center">
               {tasks.slice(0, 3).map((task) => (
                 <div 
                   key={task.id}
@@ -804,7 +804,7 @@ export default function DashboardPage() {
                 </div>
               ))}
               {tasks.length === 0 && (
-                <div className="text-center py-8 bg-slate-50/40 dark:bg-slate-900/40 rounded-2xl border border-dashed border-slate-200 dark:border-slate-800">
+                <div className="flex-1 flex flex-col items-center justify-center text-center py-8 bg-slate-50/40 dark:bg-slate-900/40 rounded-2xl border border-dashed border-slate-200 dark:border-slate-800">
                   <p className="text-xs text-slate-400">Semua tugas akademik selesai! 🎉</p>
                   <Link href="/academic" className="text-xs text-blue-650 font-semibold mt-2 inline-block">
                     Tambah Tugas Baru &rarr;

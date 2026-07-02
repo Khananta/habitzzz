@@ -1667,8 +1667,8 @@ export default function AcademicHubPage() {
               </p>
             </div>
             
-            <div className="flex items-center gap-2">
-              <div className="bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-1.5 rounded-xl flex items-center gap-1 shadow-sm">
+            <div className="flex items-center gap-2 w-full sm:w-auto">
+              <div className="bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-1 rounded-xl flex items-center gap-1 shadow-sm">
                 <button
                   onClick={() => changeSemesterViewMode('grid')}
                   className={`p-1.5 rounded-lg transition-colors cursor-pointer ${semesterViewMode === 'grid' ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
@@ -1691,7 +1691,7 @@ export default function AcademicHubPage() {
                   setSemesterStatus('Berjalan');
                   setActiveModal('addSemester');
                 }}
-                className="flex items-center gap-1.5 bg-gradient-to-r from-blue-400 to-blue-600 hover:from-blue-500 hover:to-blue-700 text-white text-xs font-semibold px-4.5 py-2.5 rounded-xl transition-all cursor-pointer shadow-md shadow-blue-500/10 active:scale-[0.98]"
+                className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 bg-gradient-to-r from-blue-400 to-blue-600 hover:from-blue-500 hover:to-blue-700 text-white text-xs font-semibold px-4.5 py-2.5 rounded-xl transition-all cursor-pointer shadow-md shadow-blue-500/10 active:scale-[0.98]"
               >
                 <Plus className="w-4 h-4 text-white" />
                 Tambah Semester
@@ -1861,7 +1861,7 @@ export default function AcademicHubPage() {
                   <div className="flex items-center justify-between">
                     <h2 className="text-sm font-bold text-slate-800 dark:text-slate-200 flex items-center gap-2">
                       <Link2 className="w-4.5 h-4.5 text-blue-500" />
-                      Link Penting & Sumber Daya Umum
+                      Sumber Daya Umum
                     </h2>
                     <button
                       onClick={() => {
@@ -2150,8 +2150,8 @@ create policy "Users can perform all actions on their own academic links"
               </p>
             </div>
             
-            <div className="flex items-center gap-2">
-              <div className="bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-1.5 rounded-xl flex items-center gap-1 shadow-sm">
+            <div className="flex items-center gap-2 w-full sm:w-auto">
+              <div className="bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-1 rounded-xl flex items-center gap-1 shadow-sm">
                 <button
                   onClick={() => changeCourseViewMode('grid')}
                   className={`p-1.5 rounded-lg transition-colors cursor-pointer ${courseViewMode === 'grid' ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
@@ -2180,7 +2180,7 @@ create policy "Users can perform all actions on their own academic links"
                   setLecturerContact('');
                   setActiveModal('addCourse');
                 }}
-                className="flex items-center gap-1.5 bg-gradient-to-r from-blue-400 to-blue-600 hover:from-blue-500 hover:to-blue-700 text-white text-xs font-semibold px-4.5 py-2.5 rounded-xl transition-all cursor-pointer shadow-md shadow-blue-500/10 active:scale-[0.98]"
+                className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 bg-gradient-to-r from-blue-400 to-blue-600 hover:from-blue-500 hover:to-blue-700 text-white text-xs font-semibold px-4.5 py-2.5 rounded-xl transition-all cursor-pointer shadow-md shadow-blue-500/10 active:scale-[0.98]"
               >
                 <Plus className="w-4 h-4 text-white" />
                 Tambah Mata Kuliah
@@ -2209,11 +2209,6 @@ create policy "Users can perform all actions on their own academic links"
                       <ChevronDown className="w-4 h-4 text-slate-400" />
                     )}
                   </h2>
-                  {showCoursesList && (
-                    <p className="text-[10px] text-slate-400 dark:text-slate-500 italic">
-                      * Klik kartu matakuliah untuk memfilter daftar tugas di bawah
-                    </p>
-                  )}
                 </div>
 
                 {showCoursesList && (
@@ -2351,116 +2346,119 @@ create policy "Users can perform all actions on their own academic links"
                     ) : (
                       // List View
                       <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden">
-                        <div className="divide-y divide-slate-100 dark:divide-slate-800">
-                          {courses.map((course, index) => {
-                            const borderColors = [
-                              'border-l-blue-500',
-                              'border-l-indigo-500',
-                              'border-l-sky-500',
-                              'border-l-violet-500',
-                              'border-l-emerald-500',
-                              'border-l-amber-500'
-                            ];
-                            const leftBorderClass = borderColors[index % borderColors.length];
-                            const isFiltered = taskFilterCourseId === course.id;
-                            const isConflicted = hasCalendarConflict(course, courses);
-                            
-                            return (
-                              <div
-                                key={course.id}
-                                onClick={() => {
-                                  setTaskFilterCourseId(prev => prev === course.id ? 'All' : course.id);
-                                }}
-                                className={`px-6 py-4 flex items-center justify-between border-l-4 ${leftBorderClass} hover:bg-slate-50/50 dark:hover:bg-slate-800/30 cursor-pointer transition-colors group ${
-                                  isFiltered ? 'bg-blue-50/10 dark:bg-blue-950/10' : ''
-                                }`}
-                              >
-                                <div className="flex items-center gap-4 flex-1 min-w-0">
-                                  {/* Course Icon styled in high contrast Dark Mode */}
-                                  <div className="w-8 h-8 rounded-lg bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-300 border border-indigo-100/50 dark:border-indigo-900/40 flex items-center justify-center font-bold text-xs flex-shrink-0">
-                                    📖
-                                  </div>
-                                  <div className="min-w-0 flex-1 flex items-center gap-3">
-                                    <div>
-                                      <h4 className="text-xs font-bold text-slate-800 dark:text-slate-200 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors truncate">
-                                        {course.name}
-                                      </h4>
-                                      <div className="flex items-center gap-3 text-[10px] text-slate-400 dark:text-slate-500 mt-0.5">
-                                        <span>{course.sks} SKS</span>
-                                      </div>
+                        <div className="overflow-x-auto scrollbar-hidden">
+                          <div className="divide-y divide-slate-100 dark:divide-slate-800 min-w-[720px] md:min-w-0">
+                            {courses.map((course, index) => {
+                              const borderColors = [
+                                'border-l-blue-500',
+                                'border-l-indigo-500',
+                                'border-l-sky-500',
+                                'border-l-violet-500',
+                                'border-l-emerald-500',
+                                'border-l-amber-500'
+                              ];
+                              const leftBorderClass = borderColors[index % borderColors.length];
+                              const isFiltered = taskFilterCourseId === course.id;
+                              const isConflicted = hasCalendarConflict(course, courses);
+                              
+                              return (
+                                <div
+                                  key={course.id}
+                                  onClick={() => {
+                                    setTaskFilterCourseId(prev => prev === course.id ? 'All' : course.id);
+                                  }}
+                                  className={`px-6 py-4 flex items-center justify-between border-l-4 ${leftBorderClass} hover:bg-slate-50/50 dark:hover:bg-slate-800/30 cursor-pointer transition-colors group ${
+                                    isFiltered ? 'bg-blue-50/10 dark:bg-blue-950/10' : ''
+                                  }`}
+                                >
+                                  <div className="flex items-center gap-4 flex-1 min-w-0">
+                                    {/* Course Icon styled in high contrast Dark Mode */}
+                                    <div className="w-8 h-8 rounded-lg bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-300 border border-indigo-100/50 dark:border-indigo-900/40 flex items-center justify-center font-bold text-xs flex-shrink-0">
+                                      📖
                                     </div>
-                                    {isConflicted && (
-                                      <span className="text-[7px] font-extrabold uppercase tracking-widest bg-red-100 dark:bg-red-950/40 text-red-600 dark:text-red-300 px-1 py-0.2 rounded border border-red-200/50 dark:border-red-900/40 flex items-center gap-0.5 animate-pulse flex-shrink-0">
-                                        Bentrok
+                                    <div className="min-w-0 flex-1 flex items-center gap-3">
+                                      <div className="min-w-0 flex-1">
+                                        <h4 className="text-xs font-bold text-slate-800 dark:text-slate-200 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors truncate">
+                                          {course.name}
+                                        </h4>
+                                        <div className="flex flex-wrap items-center gap-2.5 text-[10px] text-slate-400 dark:text-slate-500 mt-0.5">
+                                          <span className="flex-shrink-0">{course.sks} SKS</span>
+                                          {course.schedule && (
+                                            <div className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400 min-w-0">
+                                              <span className="w-1 h-1 rounded-full bg-slate-300 dark:bg-slate-700 flex-shrink-0" />
+                                              <Clock className="w-3 h-3 text-blue-500 flex-shrink-0" />
+                                              <span className="truncate">{course.schedule}</span>
+                                            </div>
+                                          )}
+                                        </div>
+                                      </div>
+                                      {isConflicted && (
+                                        <span className="text-[7px] font-extrabold uppercase tracking-widest bg-red-100 dark:bg-red-950/40 text-red-600 dark:text-red-300 px-1 py-0.2 rounded border border-red-200/50 dark:border-red-900/40 flex items-center gap-0.5 animate-pulse flex-shrink-0">
+                                          Bentrok
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+
+                                  <div className="flex items-center gap-6">
+                                    
+                                    {course.room && (
+                                      <span className="text-[9px] text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 px-2.5 py-0.5 rounded-lg border border-slate-200/55 dark:border-slate-700 flex items-center gap-1 font-semibold">
+                                        <MapPin className="w-3.5 h-3.5 text-red-500 flex-shrink-0" />
+                                        {course.room}
                                       </span>
                                     )}
+
+                                    {course.lecturer_name && (
+                                      <span className="text-[10px] text-slate-500 dark:text-slate-400 flex items-center gap-1 font-semibold max-w-[120px] truncate">
+                                        <User className="w-3 h-3 text-slate-400 dark:text-slate-600 flex-shrink-0" />
+                                        {course.lecturer_contact ? (
+                                          <span
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              window.open(formatWhatsAppUrl(course.lecturer_contact), '_blank', 'noopener,noreferrer');
+                                            }}
+                                            className="text-emerald-600 dark:text-emerald-400 hover:underline cursor-pointer font-bold"
+                                            title="Hubungi via WhatsApp"
+                                          >
+                                            {course.lecturer_name}
+                                          </span>
+                                        ) : (
+                                          course.lecturer_name
+                                        )}
+                                      </span>
+                                    )}
+
+                                    {/* Action buttons (with proper stop propagation) */}
+                                    <div className="flex items-center gap-1.5 relative z-10">
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          e.preventDefault();
+                                          openEditCourse(course, e);
+                                        }}
+                                        className="p-1.5 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 transition-colors cursor-pointer"
+                                        title="Edit Mata Kuliah"
+                                      >
+                                        <Pencil className="w-3.5 h-3.5" />
+                                      </button>
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          e.preventDefault();
+                                          handleDeleteCourse(course.id);
+                                        }}
+                                        className="p-1.5 bg-white dark:bg-slate-800 hover:bg-red-50 dark:hover:bg-red-950 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-500 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-400 transition-colors cursor-pointer"
+                                        title="Hapus Mata Kuliah"
+                                      >
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                      </button>
+                                    </div>
                                   </div>
                                 </div>
-
-                                <div className="flex items-center gap-6">
-                                  {course.schedule && (
-                                    <span className="text-[10px] text-slate-500 dark:text-slate-400 flex items-center gap-1">
-                                      <Clock className="w-3.5 h-3.5 text-blue-500" />
-                                      {course.schedule}
-                                    </span>
-                                  )}
-                                  
-                                  {course.room && (
-                                    <span className="text-[9px] text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 px-2.5 py-0.5 rounded-lg border border-slate-200/55 dark:border-slate-700 flex items-center gap-1 font-semibold">
-                                      <MapPin className="w-3.5 h-3.5 text-red-500 flex-shrink-0" />
-                                      {course.room}
-                                    </span>
-                                  )}
-
-                                  {course.lecturer_name && (
-                                    <span className="text-[10px] text-slate-500 dark:text-slate-400 flex items-center gap-1 font-semibold max-w-[120px] truncate">
-                                      <User className="w-3 h-3 text-slate-400 dark:text-slate-600 flex-shrink-0" />
-                                      {course.lecturer_contact ? (
-                                        <span
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            window.open(formatWhatsAppUrl(course.lecturer_contact), '_blank', 'noopener,noreferrer');
-                                          }}
-                                          className="text-emerald-600 dark:text-emerald-400 hover:underline cursor-pointer font-bold"
-                                          title="Hubungi via WhatsApp"
-                                        >
-                                          {course.lecturer_name}
-                                        </span>
-                                      ) : (
-                                        course.lecturer_name
-                                      )}
-                                    </span>
-                                  )}
-
-                                  {/* Action buttons (with proper stop propagation) */}
-                                  <div className="flex items-center gap-1.5 relative z-10">
-                                    <button
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        e.preventDefault();
-                                        openEditCourse(course, e);
-                                      }}
-                                      className="p-1.5 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 transition-colors cursor-pointer"
-                                      title="Edit Mata Kuliah"
-                                    >
-                                      <Pencil className="w-3.5 h-3.5" />
-                                    </button>
-                                    <button
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        e.preventDefault();
-                                        handleDeleteCourse(course.id);
-                                      }}
-                                      className="p-1.5 bg-white dark:bg-slate-800 hover:bg-red-50 dark:hover:bg-red-950 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-500 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-400 transition-colors cursor-pointer"
-                                      title="Hapus Mata Kuliah"
-                                    >
-                                      <Trash2 className="w-3.5 h-3.5" />
-                                    </button>
-                                  </div>
-                                </div>
-                              </div>
-                            );
-                          })}
+                              );
+                            })}
+                          </div>
                         </div>
                       </div>
                     )}
@@ -2517,12 +2515,12 @@ create policy "Users can perform all actions on their own academic links"
                     </div>
                   </div>
 
-                  <div className="flex flex-wrap items-center gap-3">
+                  <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
                     {/* Active Filter Indicators */}
                     {(taskFilterCourseId !== 'All' || taskFilterStatus !== 'All' || taskFilterStartDate || taskFilterEndDate || taskFilterDate) && (
                       <button 
                         onClick={resetExpertFilters}
-                        className="text-[9px] font-bold bg-red-50 hover:bg-red-100 dark:bg-red-950/30 dark:hover:bg-red-900 text-red-600 dark:text-red-300 px-2.5 py-1.5 rounded-lg border border-red-200 dark:border-red-900/50 cursor-pointer transition-colors"
+                        className="h-8 flex items-center justify-center text-[9px] font-bold bg-red-50 hover:bg-red-100 dark:bg-red-950/30 dark:hover:bg-red-900 text-red-600 dark:text-red-300 px-2.5 rounded-lg border border-red-200 dark:border-red-900/50 cursor-pointer transition-colors"
                       >
                         Reset Filter
                       </button>
@@ -2530,24 +2528,24 @@ create policy "Users can perform all actions on their own academic links"
                     
                     <button
                       onClick={openFilterModal}
-                      className="flex items-center gap-1.5 bg-slate-50 hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-[10px] font-bold px-3.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 transition-colors cursor-pointer shadow-xs"
+                      className="w-full sm:w-auto h-8 flex items-center justify-center gap-1.5 bg-slate-50 hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-[10px] font-bold px-3.5 rounded-lg border border-slate-200 dark:border-slate-700 transition-colors cursor-pointer shadow-xs"
                     >
                       <Filter className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500" />
                       Filter Lanjutan
                     </button>
 
                     {/* View Switcher Tasks */}
-                    <div className="bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-1 rounded-lg flex items-center gap-0.5 shadow-sm">
+                    <div className="h-8 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-0.5 rounded-lg flex items-center gap-0.5 shadow-sm">
                       <button
                         onClick={() => changeTaskViewMode('grid')}
-                        className={`p-1 rounded-md transition-colors cursor-pointer ${taskViewMode === 'grid' ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm' : 'text-slate-500'}`}
+                        className={`h-full aspect-square flex items-center justify-center rounded-md transition-colors cursor-pointer ${taskViewMode === 'grid' ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm' : 'text-slate-500'}`}
                         title="Grid View"
                       >
                         <LayoutGrid className="w-3.5 h-3.5" />
                       </button>
                       <button
                         onClick={() => changeTaskViewMode('list')}
-                        className={`p-1 rounded-md transition-colors cursor-pointer ${taskViewMode === 'list' ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm' : 'text-slate-500'}`}
+                        className={`h-full aspect-square flex items-center justify-center rounded-md transition-colors cursor-pointer ${taskViewMode === 'list' ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm' : 'text-slate-500'}`}
                         title="List View"
                       >
                         <List className="w-3.5 h-3.5" />
@@ -2560,7 +2558,7 @@ create policy "Users can perform all actions on their own academic links"
                         setBulkRows([{ name: '', courseId: taskFilterCourseId !== 'All' ? taskFilterCourseId : '', startDate: '', dueDate: '', dueTime: '23:59', taskType: 'Tugas', taskMethod: 'Individu', description: '' }]);
                         setActiveModal('bulkAddTask');
                       }}
-                      className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 text-[10px] font-bold px-3 py-1.5 rounded-lg transition-colors cursor-pointer shadow-sm"
+                      className="h-8 flex items-center justify-center gap-1 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 text-[10px] font-bold px-3 rounded-lg transition-colors cursor-pointer shadow-sm"
                     >
                       Bulk Add
                     </button>
@@ -2577,7 +2575,7 @@ create policy "Users can perform all actions on their own academic links"
                         setTaskMethod('Individu');
                         setActiveModal('addTask');
                       }}
-                      className="flex items-center gap-1 bg-gradient-to-r from-blue-400 to-blue-600 hover:from-blue-500 hover:to-blue-700 text-white text-[10px] font-bold px-3 py-1.5 rounded-lg transition-all cursor-pointer shadow-sm active:scale-[0.98]"
+                      className="flex-1 sm:flex-initial h-8 flex items-center justify-center gap-1 bg-gradient-to-r from-blue-400 to-blue-600 hover:from-blue-500 hover:to-blue-700 text-white text-[10px] font-bold px-3 rounded-lg transition-all cursor-pointer shadow-sm active:scale-[0.98]"
                     >
                       <Plus className="w-3.5 h-3.5 text-white" />
                       Tambah Tugas

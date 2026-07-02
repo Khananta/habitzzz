@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useEffect, useState } from 'react';
 import { supabase } from './supabase';
+import { toast } from 'react-hot-toast';
 
 const AuthContext = createContext({});
 
@@ -95,6 +96,42 @@ export function AuthProvider({ children }) {
     await supabase.auth.signOut();
     setUser(null);
   };
+
+  // Inactivity Auto-logout (15 minutes)
+  useEffect(() => {
+    if (!user) return;
+
+    let timeoutId;
+    const INACTIVITY_TIMEOUT = 15 * 60 * 1000; // 15 minutes
+
+    const resetTimer = () => {
+      clearTimeout(timeoutId);
+      timeoutId = setTimeout(() => {
+        logout();
+        toast('Sesi Anda berakhir karena tidak ada aktivitas selama 15 menit.', {
+          icon: '⏳',
+          duration: 6000
+        });
+      }, INACTIVITY_TIMEOUT);
+    };
+
+    const events = ['mousemove', 'keydown', 'click', 'scroll', 'touchstart'];
+    
+    // Attach event listeners
+    events.forEach(event => {
+      window.addEventListener(event, resetTimer);
+    });
+
+    // Start timer on mount/auth state change
+    resetTimer();
+
+    return () => {
+      clearTimeout(timeoutId);
+      events.forEach(event => {
+        window.removeEventListener(event, resetTimer);
+      });
+    };
+  }, [user]);
 
   return (
     <AuthContext.Provider value={{ user, loading, login, register, logout }}>

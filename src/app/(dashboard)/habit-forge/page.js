@@ -564,7 +564,7 @@ CREATE POLICY "Users can manage their own habit logs"
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 w-full sm:w-auto">
           <button
             onClick={handleResetToday}
             className="flex items-center gap-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 text-xs font-semibold px-4.5 py-2.5 rounded-xl transition-all cursor-pointer shadow-xs"
@@ -582,7 +582,7 @@ CREATE POLICY "Users can manage their own habit logs"
               setEditingHabit(null);
               setActiveModal('addHabit');
             }}
-            className="flex items-center gap-1.5 bg-gradient-to-r from-blue-400 to-blue-600 hover:from-blue-500 hover:to-blue-700 text-white text-xs font-semibold px-4.5 py-2.5 rounded-xl transition-all cursor-pointer shadow-md shadow-blue-500/10 active:scale-[0.98]"
+            className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 bg-gradient-to-r from-blue-400 to-blue-600 hover:from-blue-500 hover:to-blue-700 text-white text-xs font-semibold px-4.5 py-2.5 rounded-xl transition-all cursor-pointer shadow-md shadow-blue-500/10 active:scale-[0.98]"
           >
             <Plus className="w-4 h-4 text-white" />
             Tambah Habit Baru
@@ -719,36 +719,36 @@ CREATE POLICY "Users can manage their own habit logs" ON public.habit_logs FOR A
             </p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3.5">
+          <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
             {/* Filter Status */}
-            <div className="flex items-center gap-1 border border-slate-200 dark:border-slate-700 p-1 bg-slate-50 dark:bg-slate-800 rounded-lg shadow-sm text-[9px] font-bold">
+            <div className="w-full sm:w-auto h-9 flex items-center gap-1 border border-slate-200 dark:border-slate-700 p-1 bg-slate-50 dark:bg-slate-800 rounded-lg shadow-sm text-[10px] font-bold">
               <button 
                 onClick={() => setFilterStatus('All')}
-                className={`px-2 py-0.5 rounded-md transition-colors cursor-pointer ${filterStatus === 'All' ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
+                className={`flex-1 sm:flex-initial h-full px-3 rounded-md transition-colors cursor-pointer flex items-center justify-center ${filterStatus === 'All' ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
               >
                 Semua
               </button>
               <button 
                 onClick={() => setFilterStatus('Pending')}
-                className={`px-2 py-0.5 rounded-md transition-colors cursor-pointer ${filterStatus === 'Pending' ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
+                className={`flex-1 sm:flex-initial h-full px-3 rounded-md transition-colors cursor-pointer flex items-center justify-center ${filterStatus === 'Pending' ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
               >
                 Belum Centang
               </button>
               <button 
                 onClick={() => setFilterStatus('Completed')}
-                className={`px-2 py-0.5 rounded-md transition-colors cursor-pointer ${filterStatus === 'Completed' ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
+                className={`flex-1 sm:flex-initial h-full px-3 rounded-md transition-colors cursor-pointer flex items-center justify-center ${filterStatus === 'Completed' ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
               >
                 Sudah Centang
               </button>
             </div>
 
             {/* Sort Dropdown */}
-            <div className="flex items-center gap-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-2.5 py-1 rounded-lg text-[10px] font-semibold text-slate-600 dark:text-slate-300 shadow-sm">
+            <div className="flex-1 sm:flex-initial h-9 flex items-center gap-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-3 rounded-lg text-[10px] font-semibold text-slate-600 dark:text-slate-300 shadow-sm">
               <span className="text-slate-400">Urutkan:</span>
               <select 
                 value={sortBy}
                 onChange={(e) => setSortBy(e.target.value)}
-                className="bg-transparent focus:outline-none cursor-pointer dark:bg-slate-800 dark:text-slate-200 text-[10px] font-bold"
+                className="bg-transparent focus:outline-none cursor-pointer dark:bg-slate-800 dark:text-slate-200 text-[10px] font-bold h-full"
               >
                 <option value="Newest" className="dark:bg-slate-900 text-slate-800 dark:text-slate-200">Terbaru</option>
                 <option value="Name" className="dark:bg-slate-900 text-slate-800 dark:text-slate-200">Nama (A-Z)</option>
@@ -757,17 +757,17 @@ CREATE POLICY "Users can manage their own habit logs" ON public.habit_logs FOR A
             </div>
 
             {/* Grid vs List Switcher */}
-            <div className="bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-1 rounded-lg flex items-center gap-0.5 shadow-sm">
+            <div className="h-9 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-1 rounded-lg flex items-center gap-0.5 shadow-sm">
               <button
                 onClick={() => changeHabitViewMode('grid')}
-                className={`p-1 rounded-md transition-colors cursor-pointer ${habitViewMode === 'grid' ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm' : 'text-slate-500'}`}
+                className={`p-1 h-full aspect-square flex items-center justify-center rounded-md transition-colors cursor-pointer ${habitViewMode === 'grid' ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm' : 'text-slate-500'}`}
                 title="Grid View"
               >
                 <LayoutGrid className="w-3.5 h-3.5" />
               </button>
               <button
                 onClick={() => changeHabitViewMode('list')}
-                className={`p-1 rounded-md transition-colors cursor-pointer ${habitViewMode === 'list' ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm' : 'text-slate-500'}`}
+                className={`p-1 h-full aspect-square flex items-center justify-center rounded-md transition-colors cursor-pointer ${habitViewMode === 'list' ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm' : 'text-slate-500'}`}
                 title="List View"
               >
                 <List className="w-3.5 h-3.5" />

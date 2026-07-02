@@ -425,7 +425,7 @@ export default function DailyActivityPage() {
                 : 'bg-white dark:bg-slate-900 text-slate-550 dark:text-slate-400 border border-slate-200 dark:border-slate-800'
             }`}
           >
-            {wd.shortName} ({wd.dayNum})
+            {wd.shortName} {wd.dayNum}/{wd.monthShort}
           </button>
         ))}
       </div>
