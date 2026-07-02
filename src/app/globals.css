@@ -1,0 +1,82 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* --------------------------------------------------------- */
+/* SWEETALERT2 PREMIUM CUSTOM STYLINGS                       */
+/* --------------------------------------------------------- */
+.swal2-popup {
+  border-radius: 1.5rem !important; /* rounded-3xl / 24px */
+  font-family: var(--font-geist-sans), sans-serif !important;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04) !important;
+}
+
+/* Light mode SweetAlert buttons text color fix */
+.swal2-confirm {
+  background-color: #ef4444 !important; /* red-500 */
+  color: #ffffff !important;
+  border-radius: 0.75rem !important;
+  font-size: 0.75rem !important;
+  font-weight: 600 !important;
+  padding: 0.625rem 1.25rem !important;
+  box-shadow: 0 4px 6px -1px rgba(239, 68, 68, 0.2) !important;
+  cursor: pointer !important;
+  transition: all 0.2s !important;
+}
+.swal2-confirm:hover {
+  background-color: #dc2626 !important; /* red-600 */
+}
+
+.swal2-cancel {
+  background-color: #f1f5f9 !important; /* slate-100 */
+  color: #334155 !important;
+  border: 1px solid #cbd5e1 !important;
+  border-radius: 0.75rem !important;
+  font-size: 0.75rem !important;
+  font-weight: 600 !important;
+  padding: 0.625rem 1.25rem !important;
+  cursor: pointer !important;
+  transition: all 0.2s !important;
+}
+.swal2-cancel:hover {
+  background-color: #e2e8f0 !important;
+}
+
+/* Dark Mode SweetAlert popup override */
+.dark .swal2-popup {
+  background-color: #0f172a !important; /* slate-900 */
+  color: #f8fafc !important;
+  border: 1px solid #1e293b !important;
+}
+
+.dark .swal2-title {
+  color: #ffffff !important;
+}
+
+.dark .swal2-html-container {
+  color: #cbd5e1 !important;
+}
+
+.dark .swal2-cancel {
+  background-color: #1e293b !important; /* slate-800 */
+  color: #cbd5e1 !important;
+  border: 1px solid #334155 !important;
+}
+.dark .swal2-cancel:hover {
+  background-color: #334155 !important;
+}
+
+.swal2-actions {
+  gap: 0.75rem !important;
+  margin-top: 1.50rem !important;
+}
+
+/* Adjust standard SweetAlert question / warning icon colors */
+.swal2-icon.swal2-warning {
+  border-color: #f59e0b !important;
+  color: #f59e0b !important;
+}
+.swal2-icon.swal2-question {
+  border-color: #3b82f6 !important;
+  color: #3b82f6 !important;
+}
