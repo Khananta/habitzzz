@@ -19,8 +19,9 @@ import {
   Calendar,
   ChevronLeft,
   ChevronRight,
-  ArrowRight,
-  ListTodo
+  ListTodo,
+  Timer,
+  StickyNote
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 
@@ -175,6 +176,16 @@ export default function DashboardLayout({ children }) {
       name: 'Daily Activity',
       path: '/daily-activity',
       icon: ListTodo,
+    },
+    {
+      name: 'Focus Room',
+      path: '/focus',
+      icon: Timer,
+    },
+    {
+      name: 'Quick Notes',
+      path: '/notes',
+      icon: StickyNote,
     },
   ];
 

@@ -71,10 +71,8 @@ export default function LoginPage() {
         <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-indigo-500/30 rounded-full blur-[100px] -ml-40 -mb-40 pointer-events-none z-0"></div>
 
         {/* Logo/Brand Header - Centered */}
-        <div className="flex items-center justify-center gap-3 relative z-10">
-          <div className="w-9 h-9 bg-white/10 backdrop-blur-md border border-white/20 text-white rounded-xl flex items-center justify-center shadow-lg">
-            <Sparkles className="w-5 h-5 text-sky-200" />
-          </div>
+        <div className="absolute top-8 left-8 flex items-center gap-2.5 z-10 select-none">
+          <img src="/favicon.ico" alt="Logo" className="w-8 h-8 object-contain" />
           <span className="text-xl font-bold tracking-tight text-white">habitzzz.</span>
         </div>
 
@@ -82,7 +80,7 @@ export default function LoginPage() {
         <div className="my-auto space-y-8 relative z-10 w-full max-w-xl mx-auto flex flex-col items-center">
           <div className="space-y-3.5 text-center max-w-md">
             <h2 className="text-4xl xl:text-5xl font-extrabold tracking-tight text-white leading-tight">
-              Tambah Kebiasaan,<br />Kuasai Akademik.
+              Perubahan berasal<br />dari hal kecil.
             </h2>
             <p className="text-blue-100 text-sm leading-relaxed">
               Habitzzz menyelaraskan target akademik dan rutinitas harian Anda dalam satu tempat dengan desain visual minimalis yang memukau.
