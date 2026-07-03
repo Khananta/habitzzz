@@ -113,6 +113,11 @@ export default function DailyActivityPage() {
   const [planLocation, setPlanLocation] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Bulk Add Modal state
+  const [showBulkModal, setShowBulkModal] = useState(false);
+  const [bulkDate, setBulkDate] = useState(getTodayLocalDateStr());
+  const [bulkItems, setBulkItems] = useState([{ name: '', time: '', location: '' }]);
+
   // Edit Modal state
   const [editingActivity, setEditingActivity] = useState(null);
   const [editName, setEditName] = useState('');
@@ -216,6 +221,73 @@ export default function DailyActivityPage() {
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const handleBulkAddActivity = async (e) => {
+    e.preventDefault();
+    const validItems = bulkItems.filter(item => item.name.trim().length > 0);
+
+    if (validItems.length === 0) {
+      toast.error('Tulis minimal satu nama kegiatan!');
+      return;
+    }
+    if (isSubmitting) return;
+
+    setIsSubmitting(true);
+    const toastId = toast.loading(`Menambahkan ${validItems.length} kegiatan sekaligus...`);
+    try {
+      const insertData = validItems.map(item => ({
+        user_id: user.id,
+        activity_name: item.name.trim(),
+        activity_date: bulkDate,
+        activity_time: item.time.trim() || null,
+        location: item.location.trim() || null,
+        is_completed: false
+      }));
+
+      const { data, error } = await supabase
+        .from('daily_activities')
+        .insert(insertData)
+        .select();
+
+      if (error) throw error;
+
+      toast.success(`${validItems.length} kegiatan berhasil ditambahkan sekaligus! 🎯`, { id: toastId });
+      setBulkItems([{ name: '', time: '', location: '' }]);
+      setShowBulkModal(false);
+
+      if (data && data.length > 0) {
+        setActivities(prev => [...prev, ...data]);
+      } else {
+        fetchActivities();
+      }
+    } catch (err) {
+      console.error('Error batch adding activities:', err.message);
+      toast.error('Gagal menambahkan kegiatan sekaligus.', { id: toastId });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const addBulkRow = () => {
+    setBulkItems(prev => [...prev, { name: '', time: '', location: '' }]);
+  };
+
+  const removeBulkRow = (index) => {
+    if (bulkItems.length === 1) {
+      setBulkItems([{ name: '', time: '', location: '' }]);
+    } else {
+      setBulkItems(prev => prev.filter((_, idx) => idx !== index));
+    }
+  };
+
+  const updateBulkItem = (index, field, value) => {
+    setBulkItems(prev => prev.map((item, idx) => {
+      if (idx === index) {
+        return { ...item, [field]: value };
+      }
+      return item;
+    }));
   };
 
   const handleEditClick = (activity) => {
@@ -399,16 +471,29 @@ export default function DailyActivityPage() {
           </p>
         </div>
 
-        <button
-          onClick={() => {
-            setPlanDate(getTodayLocalDateStr());
-            setShowAddModal(true);
-          }}
-          className="bg-gradient-to-r from-blue-400 to-blue-600 hover:from-blue-500 hover:to-blue-700 text-white text-xs font-bold px-4.5 py-2.5 rounded-xl transition-all cursor-pointer shadow-md shadow-blue-500/15 active:scale-[0.98] flex items-center gap-1.5"
-        >
-          <Plus className="w-4 h-4 stroke-[2.5]" />
-          Plan Kegiatan
-        </button>
+        <div className="flex flex-wrap sm:flex-nowrap items-center gap-3 w-full sm:w-auto">
+          <button
+            onClick={() => {
+              setBulkDate(getTodayLocalDateStr());
+              setBulkItems([{ name: '', time: '', location: '' }]);
+              setShowBulkModal(true);
+            }}
+            className="flex-1 sm:flex-initial bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-bold px-4.5 py-2.5 rounded-xl transition-all cursor-pointer border border-slate-200 dark:border-slate-700 active:scale-[0.98] flex items-center justify-center gap-1.5 h-9"
+          >
+            <ListTodo className="w-4 h-4 text-blue-500 dark:text-white" />
+            Tambah sekaligus
+          </button>
+          <button
+            onClick={() => {
+              setPlanDate(getTodayLocalDateStr());
+              setShowAddModal(true);
+            }}
+            className="flex-1 sm:flex-initial bg-gradient-to-r from-blue-400 to-blue-600 hover:from-blue-500 hover:to-blue-700 text-white text-xs font-bold px-4.5 py-2.5 rounded-xl transition-all cursor-pointer shadow-md shadow-blue-500/15 active:scale-[0.98] flex items-center justify-center gap-1.5 h-9"
+          >
+            <Plus className="w-4 h-4 stroke-[2.5]" />
+            Plan Kegiatan
+          </button>
+        </div>
       </div>
 
       {/* 2. Mobile Day Selector Tab Strip (Visible on mobile only) */}
@@ -490,7 +575,7 @@ export default function DailyActivityPage() {
                 </div>
 
                 {/* Day Activities List */}
-                <div className="flex-1 overflow-y-auto space-y-3 max-h-[380px] scrollbar-hidden">
+                <div className="flex-1 flex flex-col space-y-3 max-h-[380px] overflow-y-auto scrollbar-hidden">
                   {visibleActivities.map(activity => (
                     <div 
                       key={activity.id}
@@ -563,7 +648,7 @@ export default function DailyActivityPage() {
                   ))}
                   
                   {dayActivities.length === 0 && (
-                    <div className="text-center py-12 text-[10px] text-slate-400 dark:text-slate-505 border border-dashed border-slate-200/50 dark:border-slate-800/50 rounded-2xl bg-slate-50/10 dark:bg-slate-950/5 select-none">
+                    <div className="flex-1 flex items-center justify-center text-center text-[10px] text-slate-400 dark:text-slate-550 border border-dashed border-slate-200/50 dark:border-slate-800/50 rounded-2xl bg-slate-50/10 dark:bg-slate-950/5 select-none min-h-[140px]">
                       Belum ada agenda
                     </div>
                   )}
@@ -1131,6 +1216,128 @@ export default function DailyActivityPage() {
           </div>
         )}
       </AnimatePresence>
+
+      {/* Bulk Add Activities Modal */}
+      <AnimatePresence>
+        {showBulkModal && (
+          <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white dark:bg-slate-900 rounded-[28px] border border-slate-200 dark:border-slate-800 p-6 max-w-2xl w-full space-y-4 shadow-xl"
+            >
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800/80">
+                <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                  <CalendarRange className="w-4 h-4 text-blue-500" />
+                  Tambah beberapa kegiatan sekaligus
+                </h3>
+                <button 
+                  onClick={() => setShowBulkModal(false)}
+                  className="p-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-400 transition-colors cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <form onSubmit={handleBulkAddActivity} className="space-y-4">
+                <div className="space-y-1.5">
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400">Pilih Tanggal</label>
+                  <input
+                    type="date"
+                    value={bulkDate}
+                    onChange={(e) => setBulkDate(e.target.value)}
+                    className="w-full sm:w-48 text-xs px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 rounded-xl focus:outline-none focus:border-blue-500 font-semibold cursor-pointer"
+                    required
+                  />
+                </div>
+
+                <div className="space-y-3">
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400">Daftar Kegiatan</label>
+                  
+                  {/* Rows Container */}
+                  <div className="space-y-3 max-h-[260px] overflow-y-auto pr-1">
+                    {bulkItems.map((item, index) => (
+                      <div key={index} className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-center bg-slate-50/50 dark:bg-slate-900/50 sm:bg-transparent dark:sm:bg-transparent p-3.5 sm:p-0 rounded-2xl border border-slate-200 dark:border-slate-800/80 sm:border-none relative">
+                        {/* Name */}
+                        <div className="flex-1">
+                          <input
+                            type="text"
+                            value={item.name}
+                            onChange={(e) => updateBulkItem(index, 'name', e.target.value)}
+                            placeholder="Nama kegiatan..."
+                            className="w-full text-xs px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 rounded-xl focus:outline-none focus:border-blue-500 font-semibold"
+                            required
+                          />
+                        </div>
+                        
+                        {/* Time */}
+                        <div className="w-full sm:w-28">
+                          <input
+                            type="time"
+                            value={item.time}
+                            onChange={(e) => updateBulkItem(index, 'time', e.target.value)}
+                            className="w-full text-xs px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 rounded-xl focus:outline-none focus:border-blue-500 font-semibold cursor-pointer"
+                          />
+                        </div>
+                        
+                        {/* Location */}
+                        <div className="w-full sm:w-36">
+                          <input
+                            type="text"
+                            value={item.location}
+                            onChange={(e) => updateBulkItem(index, 'location', e.target.value)}
+                            placeholder="Lokasi"
+                            className="w-full text-xs px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 rounded-xl focus:outline-none focus:border-blue-500 font-semibold"
+                          />
+                        </div>
+
+                        {/* Remove button */}
+                        <button
+                          type="button"
+                          onClick={() => removeBulkRow(index)}
+                          className="absolute top-2 right-2 sm:relative sm:top-auto sm:right-auto p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-rose-500 rounded-lg transition-colors cursor-pointer"
+                          title="Hapus baris"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Add Row Button */}
+                  <button
+                    type="button"
+                    onClick={addBulkRow}
+                    className="w-full flex items-center justify-center gap-1.5 py-2 text-xs border border-dashed border-slate-200 dark:border-slate-800 text-slate-500 hover:text-blue-500 rounded-xl transition-all cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-900"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    Tambah Baris Kegiatan
+                  </button>
+                </div>
+
+                <div className="flex gap-2.5 pt-3 border-t border-slate-100 dark:border-slate-800/80">
+                  <button
+                    type="button"
+                    onClick={() => setShowBulkModal(false)}
+                    className="flex-1 bg-slate-50 hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-semibold py-2.5 rounded-xl transition-all cursor-pointer text-center border border-slate-200 dark:border-slate-700"
+                  >
+                    Batal
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isSubmitting}
+                    className="flex-1 bg-gradient-to-r from-blue-400 to-blue-600 hover:from-blue-500 hover:to-blue-700 text-white text-xs font-semibold py-2.5 rounded-xl transition-all cursor-pointer text-center disabled:opacity-50"
+                  >
+                    Tambahkan Kegiatan
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
 
     </div>
   );
