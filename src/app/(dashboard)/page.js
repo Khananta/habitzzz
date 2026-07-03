@@ -122,12 +122,19 @@ const getDaysInMonthCalendar = (year, month, logsList) => {
   return calendarDays;
 };
 
-// Generate Weekly completion trend
-const getWeeklyTrend = (logsList) => {
+// Generate Weekly completion trend (combined habits & daily activities)
+const getWeeklyTrend = (logsList, dailyActivitiesList) => {
   const trend = [];
   const logCounts = {};
-  logsList.forEach(log => {
+  
+  (logsList || []).forEach(log => {
     logCounts[log.logged_date] = (logCounts[log.logged_date] || 0) + 1;
+  });
+
+  (dailyActivitiesList || []).forEach(act => {
+    if (act.is_completed) {
+      logCounts[act.activity_date] = (logCounts[act.activity_date] || 0) + 1;
+    }
   });
 
   for (let i = 6; i >= 0; i--) {
@@ -151,6 +158,8 @@ export default function DashboardPage() {
   const [tasks, setTasks] = useState([]);
   const [logs, setLogs] = useState([]);
   const [dailyActivities, setDailyActivities] = useState([]);
+  const [weeklyDailyActivities, setWeeklyDailyActivities] = useState([]);
+  const [totalCompletedDaily, setTotalCompletedDaily] = useState(0);
   const [confirmingDailyActivity, setConfirmingDailyActivity] = useState(null);
   const [loadingData, setLoadingData] = useState(true);
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
@@ -219,6 +228,35 @@ export default function DashboardPage() {
         throw dailyError;
       }
       setDailyActivities(dailyData || []);
+
+      // 5. Fetch completed daily activities in the last 7 days for the weekly trend chart
+      const startOfWeek = new Date();
+      startOfWeek.setDate(startOfWeek.getDate() - 6);
+      const startOfWeekStr = formatLocalDate(startOfWeek);
+
+      const { data: weeklyDailyData, error: weeklyDailyError } = await supabase
+        .from('daily_activities')
+        .select('activity_date, is_completed')
+        .eq('user_id', user.id)
+        .eq('is_completed', true)
+        .gte('activity_date', startOfWeekStr);
+
+      if (weeklyDailyError && !weeklyDailyError.message.includes('relation "daily_activities" does not exist')) {
+        throw weeklyDailyError;
+      }
+      setWeeklyDailyActivities(weeklyDailyData || []);
+
+      // 6. Fetch total completed daily activities count (for overall leveling XP)
+      const { count: totalCompletedDailyCount, error: completedCountError } = await supabase
+        .from('daily_activities')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', user.id)
+        .eq('is_completed', true);
+
+      if (completedCountError && !completedCountError.message.includes('relation "daily_activities" does not exist')) {
+        throw completedCountError;
+      }
+      setTotalCompletedDaily(totalCompletedDailyCount || 0);
     } catch (error) {
       console.error('Error fetching dashboard data:', error.message);
       toast.error('Gagal memuat data dasbor.');
@@ -358,17 +396,27 @@ export default function DashboardPage() {
   const habitsPercent = totalHabits ? Math.round((completedHabitsCount / totalHabits) * 100) : 0;
   const maxStreak = totalHabits ? Math.max(...habits.map(h => h.streak), 0) : 0;
 
-  // Leveling XP Calculation
-  const totalLogsCount = logs.length;
-  const userLevel = Math.floor(totalLogsCount / 10) + 1;
-  const xpInCurrentLevel = totalLogsCount % 10;
+  // Daily Activities statistics
+  const completedDailyCount = dailyActivities.filter(a => a.is_completed).length;
+  const totalDailyCount = dailyActivities.length;
+  const dailyPercent = totalDailyCount ? Math.round((completedDailyCount / totalDailyCount) * 100) : 0;
+
+  // Combined Productivity Index (Habits + Daily Activities)
+  const totalInteractiveItems = totalHabits + totalDailyCount;
+  const completedInteractiveItems = completedHabitsCount + completedDailyCount;
+  const productivityPercent = totalInteractiveItems ? Math.round((completedInteractiveItems / totalInteractiveItems) * 100) : 0;
+
+  // Leveling XP Calculation (Combined Habit Logs + Completed Daily Activities count)
+  const totalXP = logs.length + totalCompletedDaily;
+  const userLevel = Math.floor(totalXP / 10) + 1;
+  const xpInCurrentLevel = totalXP % 10;
   const progressPercent = (xpInCurrentLevel / 10) * 100;
 
   // Calendar pre-computations
   const calendarDays = getDaysInMonthCalendar(selectedYear, selectedMonth, logs);
 
   // Weekly Trend Graph calculations
-  const weeklyTrend = getWeeklyTrend(logs);
+  const weeklyTrend = getWeeklyTrend(logs, weeklyDailyActivities);
   const maxWeeklyCount = Math.max(...weeklyTrend.map(t => t.count), 3);
   const linePoints = weeklyTrend.map((t, idx) => ({
     x: idx * (300 / 6),
@@ -380,7 +428,7 @@ export default function DashboardPage() {
   // Donut circumference
   const radius = 36;
   const circumference = 2 * Math.PI * radius;
-  const strokeDashoffset = circumference - (habitsPercent / 100) * circumference;
+  const strokeDashoffset = circumference - (productivityPercent / 100) * circumference;
 
   const username = user?.user_metadata?.username || 'Habitzter';
 
@@ -436,7 +484,7 @@ export default function DashboardPage() {
           </div>
 
           <p className="text-xs text-blue-100 max-w-md">
-            Anda telah mengumpulkan <strong>{totalLogsCount} XP</strong> dari penyelesaian aktivitas.
+            Anda telah mengumpulkan <strong>{totalXP} XP</strong> dari penyelesaian aktivitas.
             Selesaikan <strong>{10 - xpInCurrentLevel} centangan</strong> lagi untuk naik ke Level {userLevel + 1}!
           </p>
         </div>
@@ -459,38 +507,50 @@ export default function DashboardPage() {
       </div>
 
       {/* Overview Stats Row */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-6">
         {/* Stat 1: Habits Compliance */}
         <div className="bg-white dark:bg-slate-900 p-6 rounded-[24px] border border-slate-200 dark:border-slate-800 shadow-sm flex items-center gap-4.5">
           <div className="w-11 h-11 rounded-xl bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 flex items-center justify-center">
             <TrendingUp className="w-5 h-5" />
           </div>
           <div>
-            <p className="text-[10px] font-bold text-slate-405 dark:text-slate-500 uppercase tracking-wider">Kepatuhan Habit</p>
+            <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Kepatuhan Habit</p>
             <p className="text-2xl font-black text-slate-800 dark:text-slate-100 mt-0.5">{habitsPercent}%</p>
             <p className="text-[10px] text-slate-400 mt-0.5">{completedHabitsCount} dari {totalHabits} selesai hari ini</p>
           </div>
         </div>
 
-        {/* Stat 2: Active Tasks */}
+        {/* Stat 2: Daily Activity Compliance */}
         <div className="bg-white dark:bg-slate-900 p-6 rounded-[24px] border border-slate-200 dark:border-slate-800 shadow-sm flex items-center gap-4.5">
           <div className="w-11 h-11 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
+            <ListTodo className="w-5 h-5" />
+          </div>
+          <div>
+            <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Agenda Harian</p>
+            <p className="text-2xl font-black text-slate-800 dark:text-slate-100 mt-0.5">{dailyPercent}%</p>
+            <p className="text-[10px] text-slate-400 mt-0.5">{completedDailyCount} dari {totalDailyCount} agenda selesai hari ini</p>
+          </div>
+        </div>
+
+        {/* Stat 3: Active Tasks */}
+        <div className="bg-white dark:bg-slate-900 p-6 rounded-[24px] border border-slate-200 dark:border-slate-800 shadow-sm flex items-center gap-4.5">
+          <div className="w-11 h-11 rounded-xl bg-violet-50 dark:bg-violet-950/40 text-violet-600 dark:text-violet-400 flex items-center justify-center">
             <BookOpen className="w-5 h-5" />
           </div>
           <div>
-            <p className="text-[10px] font-bold text-slate-405 dark:text-slate-500 uppercase tracking-wider">Tugas Kuliah</p>
+            <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Tugas Kuliah</p>
             <p className="text-2xl font-black text-slate-800 dark:text-slate-100 mt-0.5">{tasks.length} Aktif</p>
             <p className="text-[10px] text-slate-400 mt-0.5">{tasks.filter(t => t.priority === 'High').length} prioritas tinggi</p>
           </div>
         </div>
 
-        {/* Stat 3: Longest Streak */}
+        {/* Stat 4: Longest Streak */}
         <div className="bg-white dark:bg-slate-900 p-6 rounded-[24px] border border-slate-200 dark:border-slate-800 shadow-sm flex items-center gap-4.5">
           <div className="w-11 h-11 rounded-xl bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 flex items-center justify-center">
             <Flame className="w-5 h-5 animate-pulse" />
           </div>
           <div>
-            <p className="text-[10px] font-bold text-slate-405 dark:text-slate-500 uppercase tracking-wider">Streak Terpanjang</p>
+            <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Streak Terpanjang</p>
             <p className="text-2xl font-black text-slate-800 dark:text-slate-100 mt-0.5">{maxStreak} Hari</p>
             <p className="text-[10px] text-slate-400 mt-0.5">Pertahankan ritme produktif Anda!</p>
           </div>
@@ -503,7 +563,7 @@ export default function DashboardPage() {
         {/* Weekly Completion Trend Chart */}
         <div className="bg-white dark:bg-slate-900 p-6 rounded-[28px] border border-slate-200 dark:border-slate-800 shadow-sm col-span-1 lg:col-span-2 flex flex-col justify-between gap-4">
           <div>
-            <h3 className="text-sm font-bold text-slate-805 dark:text-slate-200 flex items-center gap-2">
+            <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200 flex items-center gap-2">
               <Activity className="w-4 h-4 text-blue-500" />
               Tren Produktivitas Mingguan
             </h3>
@@ -554,11 +614,11 @@ export default function DashboardPage() {
         {/* Circular Donut Progress Chart */}
         <div className="bg-white dark:bg-slate-900 p-6 rounded-[28px] border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-between items-center gap-4 text-center">
           <div className="w-full text-left">
-            <h3 className="text-sm font-bold text-slate-805 dark:text-slate-200 flex items-center gap-2">
+            <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200 flex items-center gap-2">
               <Clock className="w-4 h-4 text-emerald-500" />
-              Kepatuhan Harian
+              Indeks Produktivitas
             </h3>
-            <p className="text-[10px] text-slate-400 mt-0.5">Persentase kebiasaan harian yang dicentang hari ini</p>
+            <p className="text-[10px] text-slate-400 mt-0.5">Persentase seluruh kebiasaan & agenda selesai hari ini</p>
           </div>
 
           {/* Donut Chart */}
@@ -585,7 +645,7 @@ export default function DashboardPage() {
               />
             </svg>
             <div className="absolute flex flex-col items-center">
-              <span className="text-lg font-black text-slate-800 dark:text-slate-100">{habitsPercent}%</span>
+              <span className="text-lg font-black text-slate-800 dark:text-slate-100">{productivityPercent}%</span>
               <span className="text-[8px] font-bold text-slate-400 uppercase tracking-wider mt-0.5">Rasio Sukses</span>
             </div>
           </div>

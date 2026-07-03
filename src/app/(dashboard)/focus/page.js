@@ -87,6 +87,23 @@ export default function FocusPage() {
     setTimeLeft(mode === 'focus' ? focusMinutes * 60 : breakMinutes * 60);
   };
 
+  // Auto-scroll selected durations into view on scroll wheel when modal is opened
+  useEffect(() => {
+    if (showConfig) {
+      const timer = setTimeout(() => {
+        const selectedFocus = document.getElementById(`focus-opt-${focusMinutes}`);
+        if (selectedFocus) {
+          selectedFocus.scrollIntoView({ block: 'center', behavior: 'auto' });
+        }
+        const selectedBreak = document.getElementById(`break-opt-${breakMinutes}`);
+        if (selectedBreak) {
+          selectedBreak.scrollIntoView({ block: 'center', behavior: 'auto' });
+        }
+      }, 150);
+      return () => clearTimeout(timer);
+    }
+  }, [showConfig]);
+
   const formatTime = (seconds) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
@@ -437,29 +454,69 @@ export default function FocusPage() {
               </div>
 
               <div className="space-y-4">
-                <div className="space-y-1.5">
-                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400">Waktu Fokus (10 - 60 Menit)</label>
-                  <input
-                    type="number"
-                    min="10"
-                    max="60"
-                    value={focusMinutes}
-                    onChange={(e) => changeFocusDuration(parseInt(e.target.value))}
-                    className="w-full text-xs px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-850 dark:text-slate-100 rounded-xl focus:outline-none focus:border-blue-500 font-semibold"
-                  />
-                </div>
+                {(() => {
+                  const focusOptions = Array.from({ length: 51 }, (_, i) => i + 10);
+                  const breakOptions = Array.from({ length: 29 }, (_, i) => i + 2);
+                  return (
+                    <div className="flex gap-5 justify-center items-center py-4 px-5 bg-slate-50 dark:bg-slate-950/60 rounded-2xl border border-slate-150 dark:border-slate-800">
+                      {/* Column 1: Focus Duration Wheel */}
+                      <div className="flex flex-col items-center flex-1">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2.5">Fokus (Menit)</span>
+                        <div 
+                          className="w-full h-44 overflow-y-auto flex flex-col items-center border border-slate-200 dark:border-slate-800 rounded-2xl bg-white dark:bg-slate-900 py-1.5 scroll-smooth"
+                          style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+                        >
+                          {focusOptions.map((val) => {
+                            const isSelected = val === focusMinutes;
+                            return (
+                              <button
+                                key={val}
+                                id={`focus-opt-${val}`}
+                                type="button"
+                                onClick={() => changeFocusDuration(val)}
+                                className={`w-[85%] py-2 text-center text-xs font-bold transition-all cursor-pointer flex-shrink-0 my-0.5 rounded-xl ${
+                                  isSelected 
+                                    ? 'bg-blue-600 text-white shadow-md scale-105' 
+                                    : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/60'
+                                }`}
+                              >
+                                {val}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
 
-                <div className="space-y-1.5">
-                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400">Waktu Istirahat (2 - 30 Menit)</label>
-                  <input
-                    type="number"
-                    min="2"
-                    max="30"
-                    value={breakMinutes}
-                    onChange={(e) => changeBreakDuration(parseInt(e.target.value))}
-                    className="w-full text-xs px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-850 dark:text-slate-100 rounded-xl focus:outline-none focus:border-blue-500 font-semibold"
-                  />
-                </div>
+                      {/* Column 2: Break Duration Wheel */}
+                      <div className="flex flex-col items-center flex-1">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2.5">Istirahat (Menit)</span>
+                        <div 
+                          className="w-full h-44 overflow-y-auto flex flex-col items-center border border-slate-200 dark:border-slate-800 rounded-2xl bg-white dark:bg-slate-900 py-1.5 scroll-smooth"
+                          style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+                        >
+                          {breakOptions.map((val) => {
+                            const isSelected = val === breakMinutes;
+                            return (
+                              <button
+                                key={val}
+                                id={`break-opt-${val}`}
+                                type="button"
+                                onClick={() => changeBreakDuration(val)}
+                                className={`w-[85%] py-2 text-center text-xs font-bold transition-all cursor-pointer flex-shrink-0 my-0.5 rounded-xl ${
+                                  isSelected 
+                                    ? 'bg-blue-600 text-white shadow-md scale-105' 
+                                    : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/60'
+                                }`}
+                              >
+                                {val}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
 
               <div className="bg-slate-50 dark:bg-slate-950 p-3 rounded-2xl border border-slate-100 dark:border-slate-900">

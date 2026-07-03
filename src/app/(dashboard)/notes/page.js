@@ -11,7 +11,9 @@ import {
   Loader2, 
   FileText,
   Save,
-  Check
+  Check,
+  LayoutGrid,
+  List
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 
@@ -28,6 +30,7 @@ export default function NotesPage() {
   const { user } = useAuth();
   const [notes, setNotes] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [viewMode, setViewMode] = useState('grid'); // 'grid' or 'list'
 
   // Fetch Notes
   useEffect(() => {
@@ -119,16 +122,45 @@ export default function NotesPage() {
             Tulis ide spontan, coretan, atau tugas jangka pendek dalam bentuk sticky notes estetik.
           </p>
         </div>
-        <button
-          onClick={handleAddNote}
-          className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 bg-gradient-to-r from-blue-400 to-blue-600 hover:from-blue-500 hover:to-blue-700 text-white text-xs font-semibold px-4.5 py-2.5 rounded-xl transition-all cursor-pointer shadow-md shadow-blue-500/10 active:scale-[0.98]"
-        >
-          <Plus className="w-4 h-4 text-white" />
-          Tambah Catatan Baru
-        </button>
+        
+        <div className="flex flex-wrap sm:flex-nowrap items-center gap-3 w-full sm:w-auto">
+          {/* View Mode Switcher */}
+          <div className="flex items-center bg-slate-100 dark:bg-slate-800 p-1 rounded-xl border border-slate-200 dark:border-slate-700/80">
+            <button
+              onClick={() => setViewMode('grid')}
+              className={`p-2 rounded-lg transition-all cursor-pointer flex items-center justify-center ${
+                viewMode === 'grid'
+                  ? 'bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 shadow-xs'
+                  : 'text-slate-400 hover:text-slate-650 dark:hover:text-slate-300'
+              }`}
+              title="Grid View"
+            >
+              <LayoutGrid className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => setViewMode('list')}
+              className={`p-2 rounded-lg transition-all cursor-pointer flex items-center justify-center ${
+                viewMode === 'list'
+                  ? 'bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 shadow-xs'
+                  : 'text-slate-400 hover:text-slate-650 dark:hover:text-slate-300'
+              }`}
+              title="List View"
+            >
+              <List className="w-4 h-4" />
+            </button>
+          </div>
+
+          <button
+            onClick={handleAddNote}
+            className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 bg-gradient-to-r from-blue-400 to-blue-600 hover:from-blue-500 hover:to-blue-700 text-white text-xs font-semibold px-4.5 py-2.5 rounded-xl transition-all cursor-pointer shadow-md shadow-blue-500/10 active:scale-[0.98] h-9.5"
+          >
+            <Plus className="w-4 h-4 text-white" />
+            Tambah Catatan Baru
+          </button>
+        </div>
       </div>
 
-      {/* Main Grid View */}
+      {/* Main Grid/List View */}
       {loading ? (
         <div className="flex justify-center py-20">
           <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />
@@ -144,13 +176,14 @@ export default function NotesPage() {
       ) : (
         <motion.div 
           layout
-          className="grid grid-cols-1 md:grid-cols-3 gap-6"
+          className={viewMode === 'grid' ? "grid grid-cols-1 md:grid-cols-3 gap-6" : "flex flex-col gap-4 w-full"}
         >
           <AnimatePresence mode="popLayout">
             {notes.map(note => (
               <NoteCard 
                 key={note.id}
                 note={note}
+                viewMode={viewMode}
                 onLocalUpdate={handleLocalUpdate}
                 onDelete={handleDeleteNote}
               />
@@ -162,14 +195,14 @@ export default function NotesPage() {
   );
 }
 
-// Subcomponent for each Note Card to isolate state and debounced auto-save
-function NoteCard({ note, onLocalUpdate, onDelete }) {
+// Subcomponent for each Note Card to isolate state and manual save
+function NoteCard({ note, viewMode, onLocalUpdate, onDelete }) {
   const [localTitle, setLocalTitle] = useState(note.title);
   const [localContent, setLocalContent] = useState(note.content);
+  const [localColor, setLocalColor] = useState(note.color);
   const [saveStatus, setSaveStatus] = useState('saved'); // 'saved', 'saving', 'unsaved'
   
-  const isFirstRender = useRef(true);
-  const colorObj = PASTEL_COLORS.find(c => c.id === note.color) || PASTEL_COLORS[0];
+  const colorObj = PASTEL_COLORS.find(c => c.id === localColor) || PASTEL_COLORS[0];
 
   // Sync state if backend changes it externally
   useEffect(() => {
@@ -180,23 +213,21 @@ function NoteCard({ note, onLocalUpdate, onDelete }) {
     setLocalContent(note.content);
   }, [note.content]);
 
-  // Debounced auto-save logic
   useEffect(() => {
-    if (isFirstRender.current) {
-      isFirstRender.current = false;
-      return;
+    setLocalColor(note.color);
+  }, [note.color]);
+
+  // Track changes to enable/disable manual save button
+  useEffect(() => {
+    if (localTitle !== note.title || localContent !== note.content || localColor !== note.color) {
+      setSaveStatus('unsaved');
+    } else {
+      setSaveStatus('saved');
     }
+  }, [localTitle, localContent, localColor, note.title, note.content, note.color]);
 
-    setSaveStatus('unsaved');
-    const delayDebounceFn = setTimeout(() => {
-      saveNote();
-    }, 1000); // Auto-save 1 second after typing stops
-
-    return () => clearTimeout(delayDebounceFn);
-  }, [localTitle, localContent]);
-
-  // Save changes to Supabase
-  const saveNote = async (overrideColor) => {
+  // Save changes to Supabase manually
+  const saveNote = async () => {
     setSaveStatus('saving');
     try {
       const { error } = await supabase
@@ -204,21 +235,27 @@ function NoteCard({ note, onLocalUpdate, onDelete }) {
         .update({
           title: localTitle,
           content: localContent,
-          color: overrideColor || note.color
+          color: localColor
         })
         .eq('id', note.id);
 
       if (error) throw error;
+      onLocalUpdate(note.id, {
+        title: localTitle,
+        content: localContent,
+        color: localColor
+      });
       setSaveStatus('saved');
+      toast.success('Catatan berhasil disimpan! 💾', { duration: 1000 });
     } catch (err) {
       console.error('Error saving note:', err.message);
       setSaveStatus('unsaved');
+      toast.error('Gagal menyimpan catatan.');
     }
   };
 
-  const handleColorChange = async (colorId) => {
-    onLocalUpdate(note.id, { color: colorId });
-    saveNote(colorId);
+  const handleColorChange = (colorId) => {
+    setLocalColor(colorId);
   };
 
   return (
@@ -228,7 +265,9 @@ function NoteCard({ note, onLocalUpdate, onDelete }) {
       animate={{ opacity: 1, scale: 1 }}
       exit={{ opacity: 0, scale: 0.9, y: 15 }}
       transition={{ duration: 0.25 }}
-      className={`p-5 rounded-2xl border transition-all flex flex-col justify-between min-h-[220px] shadow-xs hover:shadow-sm relative ${colorObj.cardClass}`}
+      className={`p-5 rounded-[24px] border transition-all flex flex-col justify-between shadow-xs hover:shadow-sm relative ${colorObj.cardClass} ${
+        viewMode === 'list' ? 'w-full min-h-[140px]' : 'min-h-[220px]'
+      }`}
     >
       <div className="space-y-1.5 flex-grow flex flex-col">
         {/* Title Input */}
@@ -236,7 +275,6 @@ function NoteCard({ note, onLocalUpdate, onDelete }) {
           type="text"
           value={localTitle}
           onChange={(e) => setLocalTitle(e.target.value)}
-          onBlur={() => saveNote()}
           placeholder="Judul Catatan..."
           className="w-full bg-transparent border-none focus:outline-none text-sm font-bold text-slate-800 dark:text-slate-100 placeholder-slate-400/80"
         />
@@ -245,9 +283,10 @@ function NoteCard({ note, onLocalUpdate, onDelete }) {
         <textarea
           value={localContent}
           onChange={(e) => setLocalContent(e.target.value)}
-          onBlur={() => saveNote()}
           placeholder="Tulis catatan di sini..."
-          className="w-full bg-transparent border-none focus:outline-none text-xs text-slate-650 dark:text-slate-300 resize-none flex-grow placeholder-slate-400/80 mt-2 min-h-[90px]"
+          className={`w-full bg-transparent border-none focus:outline-none text-xs text-slate-650 dark:text-slate-300 resize-none flex-grow placeholder-slate-400/80 mt-2 ${
+            viewMode === 'list' ? 'min-h-[60px]' : 'min-h-[90px]'
+          }`}
         />
       </div>
 
@@ -261,7 +300,7 @@ function NoteCard({ note, onLocalUpdate, onDelete }) {
               key={color.id}
               onClick={() => handleColorChange(color.id)}
               className={`w-3.5 h-3.5 rounded-full cursor-pointer transition-all border hover:scale-115 ${color.dot} ${
-                note.color === color.id
+                localColor === color.id
                   ? 'ring-1 ring-slate-400 dark:ring-slate-500 scale-110 border-white dark:border-slate-900'
                   : 'border-transparent'
               }`}
@@ -270,36 +309,44 @@ function NoteCard({ note, onLocalUpdate, onDelete }) {
           ))}
         </div>
 
-        {/* Save Status indicator and Delete icon */}
-        <div className="flex items-center gap-3 text-slate-450 dark:text-slate-550">
-          <span className="text-[9px] font-bold uppercase tracking-wider flex items-center gap-1 select-none">
+        {/* Action Buttons (Save & Delete) */}
+        <div className="flex items-center gap-2">
+          {/* Save Button */}
+          <button
+            onClick={saveNote}
+            disabled={saveStatus === 'saved' || saveStatus === 'saving'}
+            className={`flex items-center gap-1.5 text-[9px] font-extrabold uppercase tracking-wider px-3.5 py-1.5 rounded-xl transition-all cursor-pointer ${
+              saveStatus === 'unsaved'
+                ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-sm shadow-blue-500/25 active:scale-95'
+                : 'bg-slate-200/60 dark:bg-slate-800/80 text-slate-450 dark:text-slate-500 cursor-default'
+            }`}
+            title="Simpan Catatan"
+          >
             {saveStatus === 'saving' ? (
-              <span className="flex items-center gap-1">
-                <Loader2 className="w-2.5 h-2.5 animate-spin text-blue-500" />
-                Saving
-              </span>
-            ) : saveStatus === 'saved' ? (
-              <span className="flex items-center gap-1 text-slate-400">
-                <Check className="w-2.5 h-2.5 text-slate-400" />
-                Saved
-              </span>
+              <>
+                <Loader2 className="w-3 h-3 animate-spin" />
+                Simpan...
+              </>
+            ) : saveStatus === 'unsaved' ? (
+              <>
+                <Save className="w-3 h-3" />
+                Simpan
+              </>
             ) : (
-              <button 
-                onClick={() => saveNote()}
-                className="flex items-center gap-1 text-amber-600 hover:text-amber-700 bg-amber-50 dark:bg-amber-950/20 px-1 rounded"
-              >
-                <Save className="w-2.5 h-2.5" />
-                Unsaved
-              </button>
+              <>
+                <Check className="w-3 h-3 text-emerald-600 dark:text-emerald-400 stroke-[3.5]" />
+                Tersimpan
+              </>
             )}
-          </span>
+          </button>
 
+          {/* Delete Button */}
           <button
             onClick={() => onDelete(note.id)}
-            className="p-1 hover:bg-slate-200/50 dark:hover:bg-slate-800/60 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 rounded-lg transition-colors cursor-pointer"
+            className="p-1.5 hover:bg-slate-200/50 dark:hover:bg-slate-800/60 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 rounded-xl transition-colors cursor-pointer"
             title="Hapus Catatan"
           >
-            <Trash2 className="w-4 h-4" />
+            <Trash2 className="w-3.5 h-3.5" />
           </button>
         </div>
 

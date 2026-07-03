@@ -41,6 +41,19 @@ import { toast } from 'react-hot-toast';
 import Swal from 'sweetalert2';
 import 'sweetalert2/dist/sweetalert2.min.css';
 
+// Helper to parse semester number integer from semester name
+const parseSemesterNumber = (name, index) => {
+  const match = name.match(/\b([1-9]|1[0-9]|20)\b/);
+  if (match) {
+    return parseInt(match[1]);
+  }
+  const num = parseInt(name.replace(/\D/g, ''));
+  if (!isNaN(num) && num >= 1 && num <= 20) {
+    return num;
+  }
+  return index + 1;
+};
+
 // Weekdays (Saturday & Sunday excluded)
 const DAYS = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat'];
 
@@ -380,6 +393,32 @@ export default function AcademicHubPage() {
   const [copiedSql, setCopiedSql] = useState(false);
   const [linksTableNeedsMigration, setLinksTableNeedsMigration] = useState(false);
 
+  // Semester Evaluation Tracker states
+  const [evaluations, setEvaluations] = useState([]);
+  const [loadingEvaluations, setLoadingEvaluations] = useState(true);
+  const [evaluationSemesterId, setEvaluationSemesterId] = useState('');
+  const [ipsScore, setIpsScore] = useState('');
+  const [selfReflection, setSelfReflection] = useState('');
+  const [isSavingEvaluation, setIsSavingEvaluation] = useState(false);
+  const [editingEvaluation, setEditingEvaluation] = useState(null);
+
+  // Auto-suggest next empty semester for evaluation when semesters or evaluations change
+  useEffect(() => {
+    if (editingEvaluation) return; // Do not auto-suggest when editing
+    if (semesters.length > 0 && evaluations.length >= 0) {
+      const evaluatedNumbers = evaluations.map(e => e.semester_number);
+      const nextSem = semesters.find((s, idx) => {
+        const num = parseSemesterNumber(s.name, idx);
+        return !evaluatedNumbers.includes(num);
+      });
+      if (nextSem) {
+        setEvaluationSemesterId(nextSem.id);
+      } else if (semesters.length > 0) {
+        setEvaluationSemesterId(semesters[0].id);
+      }
+    }
+  }, [semesters, evaluations, editingEvaluation]);
+
   const [runningSemesterCourses, setRunningSemesterCourses] = useState([]); // Courses for calendar (running semester)
   const [selectedCalendarDay, setSelectedCalendarDay] = useState(getTodayIndonesian());
   
@@ -458,6 +497,7 @@ export default function AcademicHubPage() {
     fetchSemesters();
     fetchGeneralLinks();
     fetchAllTasks();
+    fetchEvaluations();
   }, [user?.id]);
 
   // Fetch courses and tasks whenever the active semester changes
@@ -508,6 +548,174 @@ export default function AcademicHubPage() {
       toast.error('Gagal mengambil data semester.');
     } finally {
       setLoadingSemesters(false);
+    }
+  };
+
+  const fetchEvaluations = async () => {
+    if (!user) return;
+    try {
+      setLoadingEvaluations(true);
+      const { data, error } = await supabase
+        .from('semester_evaluations')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('semester_number', { ascending: true });
+
+      if (error && !error.message.includes('relation "semester_evaluations" does not exist')) {
+        throw error;
+      }
+      setEvaluations(data || []);
+    } catch (err) {
+      console.error('Error fetching evaluations:', err);
+    } finally {
+      setLoadingEvaluations(false);
+    }
+  };
+
+  const handleSubmitEvaluation = async (e) => {
+    e.preventDefault();
+    if (!user) return;
+
+    if (!evaluationSemesterId) {
+      toast.error('Silakan pilih semester terlebih dahulu.');
+      return;
+    }
+
+    const score = parseFloat(ipsScore);
+    if (isNaN(score) || score < 0.00 || score > 4.00) {
+      toast.error('Nilai IPS harus berkisar antara 0.00 dan 4.00');
+      return;
+    }
+
+    if (!selfReflection.trim()) {
+      toast.error('Mohon isi refleksi diri Anda.');
+      return;
+    }
+
+    // Find semester object
+    const selectedSem = semesters.find(s => s.id === evaluationSemesterId);
+    const semIndex = semesters.findIndex(s => s.id === evaluationSemesterId);
+    const semNum = parseSemesterNumber(selectedSem.name, semIndex);
+
+    // Check duplication
+    const isDuplicate = evaluations.some(ev => ev.semester_number === semNum && (!editingEvaluation || ev.id !== editingEvaluation.id));
+    if (isDuplicate) {
+      toast.error(`Evaluasi untuk ${selectedSem.name} (Semester ${semNum}) sudah diinput sebelumnya!`);
+      return;
+    }
+
+    try {
+      setIsSavingEvaluation(true);
+      if (editingEvaluation) {
+        const { error } = await supabase
+          .from('semester_evaluations')
+          .update({
+            semester_number: semNum,
+            ips_score: score,
+            self_reflection: selfReflection.trim()
+          })
+          .eq('id', editingEvaluation.id)
+          .eq('user_id', user.id);
+
+        if (error) throw error;
+
+        toast.success(`Evaluasi ${selectedSem.name} berhasil diperbarui! 🎯`);
+        setEditingEvaluation(null);
+      } else {
+        const { error } = await supabase
+          .from('semester_evaluations')
+          .insert([{
+            user_id: user.id,
+            semester_number: semNum,
+            ips_score: score,
+            self_reflection: selfReflection.trim()
+          }]);
+
+        if (error) throw error;
+
+        toast.success(`Evaluasi ${selectedSem.name} berhasil disimpan! 🎯`);
+      }
+      setIpsScore('');
+      setSelfReflection('');
+      fetchEvaluations();
+    } catch (err) {
+      console.error('Error saving evaluation:', err);
+      toast.error('Gagal menyimpan evaluasi semester.');
+    } finally {
+      setIsSavingEvaluation(false);
+    }
+  };
+
+  const handleDeleteEvaluation = async (id, semNum) => {
+    if (!user) return;
+
+    const isDarkTheme = document.documentElement.classList.contains('dark');
+    const result = await Swal.fire({
+      title: 'Hapus Evaluasi?',
+      text: `Apakah Anda yakin ingin menghapus data evaluasi Semester ${semNum}?`,
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#3b82f6',
+      cancelButtonColor: '#ef4444',
+      confirmButtonText: 'Ya, Hapus!',
+      cancelButtonText: 'Batal',
+      background: isDarkTheme ? '#0f172a' : '#ffffff',
+      color: isDarkTheme ? '#f1f5f9' : '#1e293b'
+    });
+
+    if (result.isConfirmed) {
+      try {
+        const { error } = await supabase
+          .from('semester_evaluations')
+          .delete()
+          .eq('id', id)
+          .eq('user_id', user.id);
+
+        if (error) throw error;
+
+        toast.success(`Evaluasi Semester ${semNum} berhasil dihapus.`);
+        fetchEvaluations();
+      } catch (err) {
+        console.error('Error deleting evaluation:', err);
+        toast.error('Gagal menghapus evaluasi.');
+      }
+    }
+  };
+
+  const handleStartEditEvaluation = (item) => {
+    setEditingEvaluation(item);
+    const matchedSem = semesters.find((s, idx) => parseSemesterNumber(s.name, idx) === item.semester_number);
+    setEvaluationSemesterId(matchedSem ? matchedSem.id : '');
+    setIpsScore(item.ips_score.toString());
+    setSelfReflection(item.self_reflection);
+  };
+
+  const handleIpsChange = (e) => {
+    let val = e.target.value;
+    if (val === '') {
+      setIpsScore('');
+      return;
+    }
+    
+    // Extract digits only
+    const digits = val.replace(/\D/g, '');
+    
+    if (digits.length === 0) {
+      setIpsScore('');
+      return;
+    }
+    
+    if (digits.length === 1) {
+      setIpsScore(digits);
+    } else if (digits.length === 2) {
+      setIpsScore(`${digits[0]}.${digits[1]}`);
+    } else {
+      const formatted = `${digits[0]}.${digits.substring(1, 3)}`;
+      if (parseFloat(formatted) > 4.00) {
+        setIpsScore('4.00');
+      } else {
+        setIpsScore(formatted);
+      }
     }
   };
 
@@ -1644,6 +1852,22 @@ export default function AcademicHubPage() {
 
   const activeRunningSemester = semesters.find(s => s.status === 'Berjalan');
 
+  // Semester Evaluation Tracker GPA Calculations
+  const calculateGPA = () => {
+    if (evaluations.length === 0) return '0.00';
+    const sum = evaluations.reduce((acc, curr) => acc + Number(curr.ips_score), 0);
+    return (sum / evaluations.length).toFixed(2);
+  };
+  const gpa = calculateGPA();
+  const getAcademicStatus = (gpaVal) => {
+    const g = parseFloat(gpaVal);
+    if (g >= 3.50) return { label: 'Dengan Pujian (Cum Laude)', color: 'text-indigo-600 bg-indigo-50 dark:bg-indigo-950/40 dark:text-indigo-400 border border-indigo-200/50 dark:border-indigo-900/30' };
+    if (g >= 3.00) return { label: 'Sangat Memuaskan', color: 'text-emerald-600 bg-emerald-50 dark:bg-emerald-950/40 dark:text-emerald-400 border border-emerald-200/50 dark:border-emerald-900/30' };
+    if (g >= 2.00) return { label: 'Memuaskan', color: 'text-blue-600 bg-blue-50 dark:bg-blue-950/40 dark:text-blue-400 border border-blue-200/50 dark:border-blue-900/30' };
+    return { label: 'Cukup', color: 'text-amber-600 bg-amber-50 dark:bg-amber-950/40 dark:text-amber-400 border border-amber-200/50 dark:border-amber-900/30' };
+  };
+  const status = getAcademicStatus(gpa);
+
   return (
     <div className="space-y-8 pb-12 text-slate-800 dark:text-slate-200 font-sans">
       
@@ -1981,129 +2205,324 @@ create policy "Users can perform all actions on their own academic links"
                   )}
                 </div>
 
-                {/* Monthly Tasks Calendar Section */}
-                <div className="pt-6 border-t border-slate-200 dark:border-slate-800 space-y-4">
-                  <div className="flex items-center gap-2">
-                    <CalendarDays className="w-4.5 h-4.5 text-blue-500 animate-pulse" />
-                    <h2 className="text-sm font-bold text-slate-800 dark:text-slate-200 tracking-tight">
-                      Pemantau Tugas Akademik Bulanan
-                    </h2>
+                {/* ======================= SEKSI EVALUASI SEMESTER (ADDED HERE) ======================= */}
+                <div className="pt-8 border-t border-slate-200 dark:border-slate-800 space-y-6">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div>
+                      <h2 className="text-sm font-bold text-slate-800 dark:text-slate-200 flex items-center gap-2">
+                        <GraduationCap className="w-4.5 h-4.5 text-blue-500" />
+                        Semester & Self-Evaluation Tracker
+                      </h2>
+                      <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5">
+                        Pantau perolehan IPS, akumulasi IPK kumulatif, serta catatan evaluasi belajar.
+                      </p>
+                    </div>
+
+                    {/* Mini GPA stats badge */}
+                    <div className="flex items-center gap-2.5">
+                      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 px-3 py-1.5 rounded-xl shadow-xs flex items-center gap-2">
+                        <span className="text-[9px] font-bold text-slate-400 uppercase">IPK:</span>
+                        <span className="text-xs font-black text-slate-800 dark:text-white">{gpa}</span>
+                      </div>
+                      <span className={`text-[10px] font-bold px-2.5 py-1.5 rounded-xl ${status.color}`}>
+                        {status.label}
+                      </span>
+                    </div>
                   </div>
-                  <MonthlyTasksCalendar 
-                    tasks={allTasks} 
-                    onDateClick={handleCalendarDateClick} 
-                  />
+
+                  {semesters.length === 0 ? (
+                    <div className="p-6 bg-slate-50/50 dark:bg-slate-900/50 border border-dashed border-slate-200 dark:border-slate-850 rounded-2xl text-center">
+                      <AlertCircle className="w-8 h-8 text-slate-350 dark:text-slate-650 mx-auto mb-2" />
+                      <p className="text-xs text-slate-500 dark:text-slate-400 font-semibold">Belum ada semester di Hub Akademik</p>
+                      <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5 max-w-xs mx-auto">
+                        Silakan tambahkan semester terlebih dahulu di atas untuk mulai melakukan evaluasi.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                      
+                      {/* Left: Input Form Card (1 Column) */}
+                      <div className="md:col-span-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 rounded-2xl shadow-xs space-y-4">
+                        <h3 className="text-xs font-extrabold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                          {editingEvaluation ? <Pencil className="w-3.5 h-3.5 text-blue-500" /> : <Plus className="w-3.5 h-3.5 text-blue-500" />}
+                          {editingEvaluation ? 'Edit Evaluasi' : 'Tambah Evaluasi'}
+                        </h3>
+                        <form onSubmit={handleSubmitEvaluation} className="space-y-3.5">
+                          {/* Semester select options from active semesters state */}
+                          <div className="space-y-1">
+                            <label className="block text-[9px] font-bold uppercase tracking-wider text-slate-400">Pilih Semester</label>
+                            <select
+                              value={evaluationSemesterId}
+                              onChange={(e) => setEvaluationSemesterId(e.target.value)}
+                              className="w-full text-[11px] px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 rounded-xl focus:outline-none focus:border-blue-500 font-bold cursor-pointer"
+                            >
+                              <option value="">-- Pilih Semester --</option>
+                              {semesters.map((sem) => (
+                                <option key={sem.id} value={sem.id}>{sem.name}</option>
+                              ))}
+                            </select>
+                          </div>
+
+                          {/* IPS score input */}
+                          <div className="space-y-1">
+                            <label className="block text-[9px] font-bold uppercase tracking-wider text-slate-400">Nilai IPS Semester</label>
+                            <input
+                              type="text"
+                              inputMode="decimal"
+                              required
+                              placeholder="Contoh: 3.84"
+                              value={ipsScore}
+                              onChange={handleIpsChange}
+                              className="w-full text-[11px] px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 rounded-xl focus:outline-none focus:border-blue-500 font-bold"
+                            />
+                          </div>
+
+                          {/* Reflection textarea */}
+                          <div className="space-y-1">
+                            <label className="block text-[9px] font-bold uppercase tracking-wider text-slate-400">Refleksi Diri</label>
+                            <textarea
+                              rows={4}
+                              required
+                              placeholder="Tuliskan kendala, keberhasilan, atau rencana belajar Anda berikutnya..."
+                              value={selfReflection}
+                              onChange={(e) => setSelfReflection(e.target.value)}
+                              className="w-full text-[11px] px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-850 dark:text-slate-100 rounded-xl focus:outline-none focus:border-blue-500 font-semibold leading-normal"
+                            />
+                          </div>
+
+                          <div className="flex flex-col gap-2">
+                            <button
+                              type="submit"
+                              disabled={isSavingEvaluation}
+                              className="w-full bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white text-[10px] font-bold py-2 rounded-xl transition-all cursor-pointer shadow-xs active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-1"
+                            >
+                              {isSavingEvaluation ? (
+                                <Loader2 className="w-3 h-3 animate-spin" />
+                              ) : (
+                                <Sparkles className="w-3 h-3" />
+                              )}
+                              {editingEvaluation ? 'Perbarui Evaluasi' : 'Simpan Evaluasi'}
+                            </button>
+
+                            {editingEvaluation && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setEditingEvaluation(null);
+                                  setIpsScore('');
+                                  setSelfReflection('');
+                                }}
+                                className="w-full bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-350 text-[10px] font-bold py-2 rounded-xl transition-all cursor-pointer shadow-xs"
+                              >
+                                Batal
+                              </button>
+                            )}
+                          </div>
+                        </form>
+                      </div>
+
+                      {/* Right: History & Timeline Cards (2 Columns) */}
+                      <div className="md:col-span-2 space-y-3.5 max-h-[360px] overflow-y-auto pr-1 scrollbar-hidden">
+                        {loadingEvaluations ? (
+                          <div className="flex justify-center py-12 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-xs">
+                            <Loader2 className="w-6 h-6 text-blue-600 animate-spin" />
+                          </div>
+                        ) : evaluations.length === 0 ? (
+                          <div className="text-center py-12 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs flex flex-col justify-center items-center h-full min-h-[220px]">
+                            <BookOpen className="w-8 h-8 text-slate-300 dark:text-slate-650 mb-1.5" />
+                            <h4 className="text-xs font-bold text-slate-700 dark:text-slate-350">Belum ada evaluasi semester</h4>
+                            <p className="text-[10px] text-slate-400 dark:text-slate-500 max-w-xs mx-auto mt-0.5">
+                              Lakukan evaluasi semester pertamamu untuk melacak riwayat IPK Anda di sini.
+                            </p>
+                          </div>
+                        ) : (
+                          <div className="space-y-3">
+                            <AnimatePresence mode="popLayout">
+                              {evaluations.map((item) => {
+                                const matchedSem = semesters.find((s, idx) => parseSemesterNumber(s.name, idx) === item.semester_number);
+                                const displayName = matchedSem ? matchedSem.name : `Semester ${item.semester_number}`;
+                                return (
+                                  <motion.div
+                                    key={item.id}
+                                    layout
+                                    initial={{ opacity: 0, y: 8, scale: 0.98 }}
+                                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                                    exit={{ opacity: 0, y: -8, scale: 0.98 }}
+                                    className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-2xl shadow-xs flex flex-col justify-between relative group"
+                                  >
+                                    <div className="space-y-2.5">
+                                      <div className="flex justify-between items-center pb-2 border-b border-slate-100 dark:border-slate-800/80">
+                                        <div className="flex items-center gap-2">
+                                          <span className="text-[10px] font-black bg-blue-50 dark:bg-blue-950/40 text-blue-600 px-2.5 py-0.5 rounded-lg border border-blue-100/50 dark:border-blue-900/30">
+                                            {displayName}
+                                          </span>
+                                          <span className="text-[10px] font-black bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 px-2.5 py-0.5 rounded-lg border border-emerald-100/50 dark:border-emerald-900/30">
+                                            IPS: {Number(item.ips_score).toFixed(2)}
+                                          </span>
+                                        </div>
+                                        <div className="flex items-center gap-1 flex-shrink-0">
+                                          <button
+                                            type="button"
+                                            onClick={() => handleStartEditEvaluation(item)}
+                                            className="p-1 hover:bg-slate-105 dark:hover:bg-slate-850 rounded-lg text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 transition-colors cursor-pointer flex items-center justify-center"
+                                            title="Edit Evaluasi"
+                                          >
+                                            <Pencil className="w-3.5 h-3.5" />
+                                          </button>
+                                          <button
+                                            type="button"
+                                            onClick={() => handleDeleteEvaluation(item.id, item.semester_number)}
+                                            className="p-1 hover:bg-red-50 dark:hover:bg-red-950/50 rounded-lg text-slate-400 hover:text-red-500 transition-colors cursor-pointer flex items-center justify-center"
+                                            title="Hapus Evaluasi"
+                                          >
+                                            <Trash2 className="w-3.5 h-3.5" />
+                                          </button>
+                                        </div>
+                                      </div>
+                                      <blockquote className="border-l-4 border-slate-200 dark:border-slate-700 pl-3.5 italic text-slate-600 dark:text-slate-400 text-[11px] leading-relaxed">
+                                        &ldquo;{item.self_reflection}&rdquo;
+                                      </blockquote>
+                                    </div>
+                                  </motion.div>
+                                );
+                              })}
+                            </AnimatePresence>
+                          </div>
+                        )}
+                      </div>
+
+                    </div>
+                  )}
                 </div>
 
               </div>
 
-              {/* Weekly Calendar Widget (Monday to Friday only, marks conflicts) */}
+              {/* Weekly Calendar Widget & Monthly Tasks Calendar Section (under activeRunningSemester) */}
               {activeRunningSemester && (
-                <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-5 space-y-4 lg:col-span-1 min-h-[380px] animate-in fade-in slide-in-from-right-2 duration-300">
-                  <div>
-                    <h2 className="text-xs font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
-                      <CalendarDays className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-                      Jadwal Kuliah Mingguan
-                    </h2>
-                    <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5">Mata kuliah pada semester aktif ({activeRunningSemester.name})</p>
-                  </div>
+                <div className="lg:col-span-1 space-y-8 animate-in fade-in slide-in-from-right-2 duration-300">
+                  
+                  {/* Weekly Calendar Widget */}
+                  <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-5 space-y-4 min-h-[380px]">
+                    <div>
+                      <h2 className="text-xs font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                        <CalendarDays className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                        Jadwal Kuliah Mingguan
+                      </h2>
+                      <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5">Mata kuliah pada semester aktif ({activeRunningSemester.name})</p>
+                    </div>
 
-                  <div className="flex flex-wrap gap-1 border-b border-slate-100 dark:border-slate-800 pb-2">
-                    {DAYS.map(day => (
-                      <button
-                        key={day}
-                        onClick={() => setSelectedCalendarDay(day)}
-                        className={`px-2 py-1 rounded-md text-[9px] font-bold cursor-pointer transition-colors ${
-                          selectedCalendarDay === day 
-                            ? 'bg-blue-600 text-white shadow-sm' 
-                            : 'bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400'
-                        }`}
-                      >
-                        {day}
-                      </button>
-                    ))}
-                  </div>
+                    <div className="flex flex-wrap gap-1 border-b border-slate-100 dark:border-slate-800 pb-2">
+                      {DAYS.map(day => (
+                        <button
+                          key={day}
+                          onClick={() => setSelectedCalendarDay(day)}
+                          className={`px-2 py-1 rounded-md text-[9px] font-bold cursor-pointer transition-colors ${
+                            selectedCalendarDay === day 
+                              ? 'bg-blue-600 text-white shadow-sm' 
+                              : 'bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400'
+                          }`}
+                        >
+                          {day}
+                        </button>
+                      ))}
+                    </div>
 
-                  <div className="space-y-3 pt-1">
-                    {getCoursesForCalendar(selectedCalendarDay).length === 0 ? (
-                      <p className="text-[10px] text-slate-400 dark:text-slate-500 text-center py-10">Tidak ada jadwal kuliah hari {selectedCalendarDay}.</p>
-                    ) : (
-                      <div className="space-y-2.5 max-h-[320px] overflow-y-auto pr-1">
-                        {getCoursesForCalendar(selectedCalendarDay).map((c) => {
-                          const isConflicted = hasCalendarConflict(c, runningSemesterCourses);
-                          return (
-                            <div 
-                              key={c.id} 
-                              onClick={() => {
-                                setSelectedSemesterId(c.semester_id);
-                                setTaskFilterCourseId(c.id); // Filter tasks dynamically when clicking calendar item
-                                setCurrentView('courses');
-                              }}
-                              className={`p-3 border rounded-xl flex flex-col gap-1 cursor-pointer transition-all ${
-                                isConflicted 
-                                  ? 'border-red-300 dark:border-red-900 bg-red-50/10 dark:bg-red-950/20 shadow-[0_0_12px_rgba(239,68,68,0.02)]' 
-                                  : 'bg-slate-50/50 dark:bg-slate-800/40 hover:bg-blue-50/15 dark:hover:bg-blue-950/15 border-slate-200 dark:border-slate-700'
-                              }`}
-                            >
-                              <div className="flex justify-between items-start gap-2">
-                                <span className="text-[9px] font-bold text-slate-800 dark:text-slate-200 leading-snug line-clamp-2 flex-1 hover:text-blue-600 dark:hover:text-blue-400">
-                                  {c.name}
-                                </span>
-                                <div className="flex items-center gap-1.5 flex-shrink-0">
-                                  {isConflicted && (
-                                    <span className="text-[7px] font-extrabold uppercase tracking-widest bg-red-100 dark:bg-red-950/40 text-red-600 dark:text-red-300 px-1 py-0.2 rounded border border-red-200/50 dark:border-red-900/40 flex items-center gap-0.5 animate-pulse">
-                                      Bentrok
-                                    </span>
-                                  )}
-                                  {getCourseTimeStatus(c.schedule) === 'Berlangsung' && (
-                                    <span className="text-[7px] font-extrabold uppercase tracking-widest bg-emerald-100 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-300 px-1.5 py-0.5 rounded border border-emerald-200/50 dark:border-emerald-900/40 flex items-center gap-0.5 animate-pulse">
-                                      Berlangsung
-                                    </span>
-                                  )}
-                                  {getCourseTimeStatus(c.schedule) === 'Mendatang' && (
-                                    <span className="text-[7px] font-extrabold uppercase tracking-widest bg-blue-100 dark:bg-blue-950/40 text-blue-600 dark:text-blue-300 px-1.5 py-0.5 rounded border border-blue-200/50 dark:border-blue-900/40 flex items-center gap-0.5">
-                                      Mendatang
-                                    </span>
-                                  )}
-                                  <span className="text-[8px] bg-blue-50 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400 px-1.5 py-0.5 rounded-full font-semibold border border-blue-100/50 dark:border-blue-900/30">
-                                    {c.sks} SKS
+                    <div className="space-y-3 pt-1">
+                      {getCoursesForCalendar(selectedCalendarDay).length === 0 ? (
+                        <p className="text-[10px] text-slate-400 dark:text-slate-500 text-center py-10">Tidak ada jadwal kuliah hari {selectedCalendarDay}.</p>
+                      ) : (
+                        <div className="space-y-2.5 max-h-[320px] overflow-y-auto pr-1">
+                          {getCoursesForCalendar(selectedCalendarDay).map((c) => {
+                            const isConflicted = hasCalendarConflict(c, runningSemesterCourses);
+                            return (
+                              <div 
+                                key={c.id} 
+                                onClick={() => {
+                                  setSelectedSemesterId(c.semester_id);
+                                  setTaskFilterCourseId(c.id);
+                                  setCurrentView('courses');
+                                }}
+                                className={`p-3 border rounded-xl flex flex-col gap-1 cursor-pointer transition-all ${
+                                  isConflicted 
+                                    ? 'border-red-300 dark:border-red-900 bg-red-50/10 dark:bg-red-950/20 shadow-[0_0_12px_rgba(239,68,68,0.02)]' 
+                                    : 'bg-slate-50/50 dark:bg-slate-800/40 hover:bg-blue-50/15 dark:hover:bg-blue-950/15 border-slate-200 dark:border-slate-700'
+                                }`}
+                              >
+                                <div className="flex justify-between items-start gap-2">
+                                  <span className="text-[9px] font-bold text-slate-850 dark:text-slate-200 leading-snug line-clamp-2 flex-1 hover:text-blue-600 dark:hover:text-blue-400">
+                                    {c.name}
                                   </span>
-                                </div>
-                              </div>
-                              
-                              <div className="flex items-center justify-between text-[8px] text-slate-400 dark:text-slate-500 font-semibold mt-1">
-                                <span className="flex items-center gap-1">
-                                  <Clock className="w-3 h-3 text-blue-500" />
-                                  {c.schedule ? c.schedule.split(',')[1]?.trim() : ''}
-                                </span>
-                                {c.room && <span>Ruang: {c.room}</span>}
-                              </div>
-
-                               {c.lecturer_name && (
-                                <div className="text-[8px] text-slate-400 dark:text-slate-500 border-t border-slate-100 dark:border-slate-800 pt-1.5 mt-1 flex items-center gap-1.5">
-                                  <User className="w-3 h-3 text-slate-400 dark:text-slate-600" />
-                                  {c.lecturer_contact ? (
-                                    <span
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        window.open(formatWhatsAppUrl(c.lecturer_contact), '_blank', 'noopener,noreferrer');
-                                      }}
-                                      className="text-emerald-600 dark:text-emerald-400 hover:underline cursor-pointer font-bold truncate"
-                                      title="Hubungi via WhatsApp"
-                                    >
-                                      {c.lecturer_name}
+                                  <div className="flex items-center gap-1.5 flex-shrink-0">
+                                    {isConflicted && (
+                                      <span className="text-[7px] font-extrabold uppercase tracking-widest bg-red-100 dark:bg-red-950/40 text-red-600 dark:text-red-300 px-1 py-0.2 rounded border border-red-200/50 dark:border-red-900/40 flex items-center gap-0.5 animate-pulse">
+                                        Bentrok
+                                      </span>
+                                    )}
+                                    {getCourseTimeStatus(c.schedule) === 'Berlangsung' && (
+                                      <span className="text-[7px] font-extrabold uppercase tracking-widest bg-emerald-100 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-300 px-1.5 py-0.5 rounded border border-emerald-200/50 dark:border-emerald-900/40 flex items-center gap-0.5 animate-pulse">
+                                        Berlangsung
+                                      </span>
+                                    )}
+                                    {getCourseTimeStatus(c.schedule) === 'Mendatang' && (
+                                      <span className="text-[7px] font-extrabold uppercase tracking-widest bg-blue-100 dark:bg-blue-950/40 text-blue-600 dark:text-blue-300 px-1.5 py-0.5 rounded border border-blue-200/50 dark:border-blue-900/40 flex items-center gap-0.5">
+                                        Mendatang
+                                      </span>
+                                    )}
+                                    <span className="text-[8px] bg-blue-50 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400 px-1.5 py-0.5 rounded-full font-semibold border border-blue-100/50 dark:border-blue-900/30">
+                                      {c.sks} SKS
                                     </span>
-                                  ) : (
-                                    <span className="truncate">{c.lecturer_name}</span>
-                                  )}
+                                  </div>
                                 </div>
-                              )}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
+                                
+                                <div className="flex items-center justify-between text-[8px] text-slate-400 dark:text-slate-500 font-semibold mt-1">
+                                  <span className="flex items-center gap-1">
+                                    <Clock className="w-3 h-3 text-blue-500" />
+                                    {c.schedule ? c.schedule.split(',')[1]?.trim() : ''}
+                                  </span>
+                                  {c.room && <span>Ruang: {c.room}</span>}
+                                </div>
+
+                                {c.lecturer_name && (
+                                  <div className="text-[8px] text-slate-400 dark:text-slate-500 border-t border-slate-100 dark:border-slate-800 pt-1.5 mt-1 flex items-center gap-1.5">
+                                    <User className="w-3 h-3 text-slate-400 dark:text-slate-600" />
+                                    {c.lecturer_contact ? (
+                                      <span
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          window.open(formatWhatsAppUrl(c.lecturer_contact), '_blank', 'noopener,noreferrer');
+                                        }}
+                                        className="text-emerald-600 dark:text-emerald-400 hover:underline cursor-pointer font-bold truncate"
+                                        title="Hubungi via WhatsApp"
+                                      >
+                                        {c.lecturer_name}
+                                      </span>
+                                    ) : (
+                                      <span className="truncate">{c.lecturer_name}</span>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
                   </div>
+
+                  {/* Monthly Tasks Calendar Section (Moved under Weekly Calendar Widget) */}
+                  <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-5 space-y-4">
+                    <div className="flex items-center gap-2">
+                      <CalendarDays className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                      <h2 className="text-xs font-bold text-slate-900 dark:text-slate-100">
+                        Pemantau Tugas Akademik Bulanan
+                      </h2>
+                    </div>
+                    <MonthlyTasksCalendar 
+                      tasks={allTasks} 
+                      onDateClick={handleCalendarDateClick} 
+                    />
+                  </div>
+
                 </div>
               )}
 

@@ -71,7 +71,7 @@ export default function LoginPage() {
         <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-indigo-500/30 rounded-full blur-[100px] -ml-40 -mb-40 pointer-events-none z-0"></div>
 
         {/* Logo/Brand Header - Centered */}
-        <div className="absolute top-8 left-8 flex items-center gap-2.5 z-10 select-none">
+        <div className="absolute top-8 left-1/2 -translate-x-1/2 flex items-center justify-center gap-2.5 z-10 select-none">
           <img src="/favicon.ico" alt="Logo" className="w-8 h-8 object-contain" />
           <span className="text-xl font-bold tracking-tight text-white">habitzzz.</span>
         </div>
