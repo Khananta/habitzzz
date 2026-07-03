@@ -39,6 +39,16 @@ const formatLocalDate = (d) => {
   return `${y}-${m}-${dateVal}`;
 };
 
+// Robust timezone parsing helper for database dates
+const parseLogDate = (dateStr) => {
+  if (!dateStr) return '';
+  if (dateStr.includes('T') || dateStr.includes(' ') || dateStr.length > 10) {
+    const dateObj = new Date(dateStr);
+    return isNaN(dateObj.getTime()) ? dateStr.substring(0, 10) : formatLocalDate(dateObj);
+  }
+  return dateStr;
+};
+
 // Get today's ISO date string local time
 const getTodayLocalDateStr = () => {
   return formatLocalDate(new Date());
@@ -49,7 +59,7 @@ const calculateCurrentStreak = (logsList) => {
   if (!logsList || logsList.length === 0) return 0;
   
   // Sort logs descending by date
-  const dates = [...new Set(logsList.map(l => l.logged_date))].sort().reverse();
+  const dates = [...new Set(logsList.map(l => parseLogDate(l.logged_date)))].sort().reverse();
   
   let streak = 0;
   let checkDate = new Date();
@@ -81,18 +91,16 @@ const calculateCurrentStreak = (logsList) => {
   return streak;
 };
 
-// Generate 30 days contribution history (today first on the left, going backward to the right)
+// Generate 30 days contribution history (flat layout: green boxes filled from the left, based on total completions)
 const getContributionDays = (logsList) => {
   const days = [];
-  const loggedDates = new Set(logsList.map(l => l.logged_date));
+  const totalCompleted = logsList ? logsList.length : 0;
   for (let i = 0; i < 30; i++) {
-    const d = new Date();
-    d.setDate(d.getDate() - i);
-    const dateStr = formatLocalDate(d);
+    const isCompleted = i < totalCompleted;
     days.push({
-      dateStr,
-      isCompleted: loggedDates.has(dateStr),
-      dayLabel: d.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })
+      dateStr: `day-${i}`,
+      isCompleted,
+      dayLabel: `Centangan ke-${i + 1}`
     });
   }
   return days;
@@ -200,7 +208,7 @@ export default function HabitzForgePage() {
       const todayStr = getTodayLocalDateStr();
       const mappedHabits = (habitsData || []).map(h => {
         const hLogs = finalLogs.filter(l => l.habit_id === h.id);
-        const doneToday = hLogs.some(l => l.logged_date === todayStr);
+        const doneToday = hLogs.some(l => parseLogDate(l.logged_date) === todayStr);
         return {
           ...h,
           logs: hLogs,
@@ -501,11 +509,6 @@ CREATE POLICY "Users can manage their own habit logs"
   const completionPercentage = totalCount ? Math.round((completedCount / totalCount) * 100) : 0;
   const maxStreak = totalCount ? Math.max(...habits.map(h => h.streak), 0) : 0;
 
-  // Leveling XP Calculation
-  const totalLogsCount = habits.reduce((acc, h) => acc + h.logs.length, 0);
-  const userLevel = Math.floor(totalLogsCount / 10) + 1;
-  const xpInCurrentLevel = totalLogsCount % 10;
-  const progressPercent = (xpInCurrentLevel / 10) * 100;
 
   // Filter & Sort processed habits
   const processedHabits = [...habits]
@@ -590,45 +593,6 @@ CREATE POLICY "Users can manage their own habit logs"
         </div>
       </div>
 
-      {/* Leveling XP Card Widget */}
-      <div className="bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-800 text-white rounded-3xl p-6 shadow-xl relative overflow-hidden flex flex-col md:flex-row md:items-center justify-between gap-6 border border-blue-500/20">
-        {/* Glow decoration */}
-        <div className="absolute -top-12 -right-12 w-40 h-40 bg-white/10 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute -bottom-12 -left-12 w-40 h-40 bg-emerald-400/20 rounded-full blur-3xl pointer-events-none" />
-
-        <div className="space-y-3 flex-1">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-white/10 border border-white/20 flex items-center justify-center text-blue-200">
-              <Award className="w-5 h-5 animate-bounce" />
-            </div>
-            <div>
-              <span className="text-[10px] font-bold uppercase tracking-wider text-blue-200">Level Anda</span>
-              <h2 className="text-xl font-black tracking-tight mt-0.5">Habit Master Lvl {userLevel}</h2>
-            </div>
-          </div>
-
-          <p className="text-xs text-blue-100 max-w-md">
-            Anda telah menyelesaikan <strong>{totalLogsCount} total centangan (XP)</strong>. 
-            Selesaikan <strong>{10 - xpInCurrentLevel} centangan</strong> lagi untuk naik ke Level {userLevel + 1}!
-          </p>
-        </div>
-
-        {/* Progress Bar Container */}
-        <div className="w-full md:w-64 space-y-2 flex-shrink-0">
-          <div className="flex items-center justify-between text-[10px] font-extrabold uppercase tracking-wide text-blue-200">
-            <span>Progress Level {userLevel}</span>
-            <span className="text-white">{xpInCurrentLevel}/10 XP</span>
-          </div>
-          <div className="w-full h-3 bg-blue-900/60 rounded-full overflow-hidden border border-blue-700/50 p-[2px]">
-            <motion.div 
-              initial={{ width: 0 }}
-              animate={{ width: `${progressPercent}%` }}
-              transition={{ duration: 0.8, ease: 'easeOut' }}
-              className="h-full bg-gradient-to-r from-blue-400 to-emerald-400 rounded-full"
-            />
-          </div>
-        </div>
-      </div>
 
       {/* SQL Migration Assistant */}
       {tableNeedsMigration && (

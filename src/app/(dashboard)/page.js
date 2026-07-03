@@ -34,6 +34,16 @@ const formatLocalDate = (d) => {
   return `${y}-${m}-${dateVal}`;
 };
 
+// Robust timezone parsing helper for database dates
+const parseLogDate = (dateStr) => {
+  if (!dateStr) return '';
+  if (dateStr.includes('T') || dateStr.includes(' ') || dateStr.length > 10) {
+    const dateObj = new Date(dateStr);
+    return isNaN(dateObj.getTime()) ? dateStr.substring(0, 10) : formatLocalDate(dateObj);
+  }
+  return dateStr;
+};
+
 const getTodayLocalDateStr = () => {
   return formatLocalDate(new Date());
 };
@@ -43,7 +53,7 @@ const calculateCurrentStreak = (logsList) => {
   if (!logsList || logsList.length === 0) return 0;
   
   // Sort logs descending by date
-  const dates = [...new Set(logsList.map(l => l.logged_date))].sort().reverse();
+  const dates = [...new Set(logsList.map(l => parseLogDate(l.logged_date)))].sort().reverse();
   
   let streak = 0;
   let checkDate = new Date();
@@ -193,7 +203,7 @@ export default function DashboardPage() {
       const todayStr = getTodayLocalDateStr();
       const mappedHabits = (habitsData || []).map(h => {
         const hLogs = finalLogs.filter(l => l.habit_id === h.id);
-        const doneToday = hLogs.some(l => l.logged_date === todayStr);
+        const doneToday = hLogs.some(l => parseLogDate(l.logged_date) === todayStr);
         return {
           ...h,
           logs: hLogs,
