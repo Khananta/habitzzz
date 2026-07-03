@@ -616,7 +616,7 @@ export default function DashboardPage() {
                 <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
               </Link>
             </div>
-            <div className="space-y-3 flex-1 flex flex-col justify-center">
+            <div className="space-y-3 flex-1 flex flex-col justify-start">
               {[...dailyActivities]
                 .sort((a, b) => {
                   if (a.is_completed === b.is_completed) {
@@ -705,7 +705,7 @@ export default function DashboardPage() {
               </Link>
             </div>
 
-            <div className="space-y-3.5 flex-1 flex flex-col justify-center">
+            <div className="space-y-3.5 flex-1 flex flex-col justify-start">
               {habits.slice(0, 4).map((habit) => (
                 <div 
                   key={habit.id}
@@ -771,7 +771,7 @@ export default function DashboardPage() {
               </Link>
             </div>
 
-            <div className="space-y-3.5 flex-1 flex flex-col justify-center">
+            <div className="space-y-3.5 flex-1 flex flex-col justify-start">
               {tasks.slice(0, 3).map((task) => (
                 <div 
                   key={task.id}
