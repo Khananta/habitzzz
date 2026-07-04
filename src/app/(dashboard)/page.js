@@ -417,10 +417,21 @@ export default function DashboardPage() {
   const productivityPercent = totalInteractiveItems ? Math.round((completedInteractiveItems / totalInteractiveItems) * 100) : 0;
 
   // Leveling XP Calculation (Combined Habit Logs + Completed Daily Activities count)
+  // RPG scale: Level L requires L * 10 XP to complete. Cumulative XP to reach level L is 5 * L * (L - 1).
   const totalXP = logs.length + totalCompletedDaily;
-  const userLevel = Math.floor(totalXP / 10) + 1;
-  const xpInCurrentLevel = totalXP % 10;
-  const progressPercent = (xpInCurrentLevel / 10) * 100;
+  let userLevel = 1;
+  while (true) {
+    const nextLevelThreshold = 5 * (userLevel + 1) * userLevel;
+    if (totalXP >= nextLevelThreshold) {
+      userLevel++;
+    } else {
+      break;
+    }
+  }
+  const currentLevelCumulativeXp = 5 * userLevel * (userLevel - 1);
+  const xpNeededForNextLevel = userLevel * 10;
+  const xpInCurrentLevel = totalXP - currentLevelCumulativeXp;
+  const progressPercent = Math.min(100, Math.max(0, (xpInCurrentLevel / xpNeededForNextLevel) * 100));
 
   // Calendar pre-computations
   const calendarDays = getDaysInMonthCalendar(selectedYear, selectedMonth, logs);
@@ -495,7 +506,7 @@ export default function DashboardPage() {
 
           <p className="text-xs text-blue-100 max-w-md">
             Anda telah mengumpulkan <strong>{totalXP} XP</strong> dari penyelesaian aktivitas.
-            Selesaikan <strong>{10 - xpInCurrentLevel} centangan</strong> lagi untuk naik ke Level {userLevel + 1}!
+            Selesaikan <strong>{xpNeededForNextLevel - xpInCurrentLevel} centangan</strong> lagi untuk naik ke Level {userLevel + 1}!
           </p>
         </div>
 
@@ -503,7 +514,7 @@ export default function DashboardPage() {
         <div className="w-full md:w-64 space-y-2 flex-shrink-0">
           <div className="flex items-center justify-between text-[10px] font-extrabold uppercase tracking-wide text-blue-200">
             <span>Progress Level {userLevel}</span>
-            <span className="text-white">{xpInCurrentLevel}/10 XP</span>
+            <span className="text-white">{xpInCurrentLevel}/{xpNeededForNextLevel} XP</span>
           </div>
           <div className="w-full h-3 bg-blue-900/60 rounded-full overflow-hidden border border-blue-700/50 p-[2px]">
             <motion.div 

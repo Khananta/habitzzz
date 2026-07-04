@@ -213,7 +213,7 @@ export default function FocusPage() {
   const totalFocusMinutesToday = todaySessions.reduce((acc, curr) => acc + curr.duration_minutes, 0);
 
   return (
-    <div className="max-w-6xl mx-auto space-y-8 pb-12">
+    <div className="space-y-8 pb-12 text-slate-800 dark:text-slate-200 font-sans">
       {/* Hidden audio chime tag */}
       <audio ref={chimeRef} src="https://assets.mixkit.co/active_storage/sfx/2869/2869-84.wav" />
 

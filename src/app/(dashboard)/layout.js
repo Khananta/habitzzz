@@ -346,6 +346,11 @@ export default function DashboardLayout({ children }) {
       icon: ListTodo,
     },
     {
+      name: 'Catatan Ngaji',
+      path: '/quran-log',
+      icon: BookOpen,
+    },
+    {
       name: 'Focus Room',
       path: '/focus',
       icon: Timer,
