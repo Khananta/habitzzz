@@ -170,6 +170,7 @@ export default function DashboardPage() {
   const [dailyActivities, setDailyActivities] = useState([]);
   const [weeklyDailyActivities, setWeeklyDailyActivities] = useState([]);
   const [totalCompletedDaily, setTotalCompletedDaily] = useState(0);
+  const [totalCompletedSkincare, setTotalCompletedSkincare] = useState(0);
   const [confirmingDailyActivity, setConfirmingDailyActivity] = useState(null);
   const [loadingData, setLoadingData] = useState(true);
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
@@ -267,6 +268,17 @@ export default function DashboardPage() {
         throw completedCountError;
       }
       setTotalCompletedDaily(totalCompletedDailyCount || 0);
+
+      // 7. Fetch total skincare logs count
+      const { count: totalSkincareLogsCount, error: skincareLogsCountError } = await supabase
+        .from('skincare_logs')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', user.id);
+
+      if (skincareLogsCountError && !skincareLogsCountError.message.includes('relation "skincare_logs" does not exist')) {
+        throw skincareLogsCountError;
+      }
+      setTotalCompletedSkincare(totalSkincareLogsCount || 0);
     } catch (error) {
       console.error('Error fetching dashboard data:', error.message);
       toast.error('Gagal memuat data dasbor.');
@@ -416,9 +428,10 @@ export default function DashboardPage() {
   const completedInteractiveItems = completedHabitsCount + completedDailyCount;
   const productivityPercent = totalInteractiveItems ? Math.round((completedInteractiveItems / totalInteractiveItems) * 100) : 0;
 
-  // Leveling XP Calculation (Combined Habit Logs + Completed Daily Activities count)
+  // Leveling XP Calculation (Combined Habit Logs + Completed Daily Activities count + Skincare logs)
   // RPG scale: Level L requires L * 10 XP to complete. Cumulative XP to reach level L is 5 * L * (L - 1).
-  const totalXP = logs.length + totalCompletedDaily;
+  // Skincare logs award +5 XP per session log.
+  const totalXP = logs.length + totalCompletedDaily + (totalCompletedSkincare * 5);
   let userLevel = 1;
   while (true) {
     const nextLevelThreshold = 5 * (userLevel + 1) * userLevel;

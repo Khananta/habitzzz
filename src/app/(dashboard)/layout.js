@@ -31,7 +31,8 @@ import {
   TrendingUp,
   BookOpen,
   Flame,
-  Clock
+  Clock,
+  Heart
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 
@@ -351,9 +352,9 @@ export default function DashboardLayout({ children }) {
       icon: BookOpen,
     },
     {
-      name: 'Focus Room',
-      path: '/focus',
-      icon: Timer,
+      name: 'Skincare Routine',
+      path: '/skincare',
+      icon: Heart,
     },
     {
       name: 'Quick Notes',
