@@ -19,7 +19,9 @@ import {
   ShoppingBag,
   Clock,
   List,
-  LayoutGrid
+  LayoutGrid,
+  ArrowUp,
+  ArrowDown
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import Swal from 'sweetalert2';
@@ -34,6 +36,21 @@ const formatLocalDate = (d) => {
 };
 
 const DAYS_INDONESIAN = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+
+// Helper for category emoji icons
+const getCategoryIcon = (category) => {
+  switch (category) {
+    case 'Cleanser': return '🧼';
+    case 'Toner': return '💧';
+    case 'Serum': return '🧪';
+    case 'Moisturizer': return '🧴';
+    case 'Sunscreen': return '☀️';
+    case 'Exfoliator': return '✨';
+    case 'Mask': return '🎭';
+    case 'Oil': return '💧';
+    default: return '🌸';
+  }
+};
 
 export default function SkincareRoutinePage() {
   const { user } = useAuth();
@@ -54,6 +71,8 @@ export default function SkincareRoutinePage() {
   const [productModalOpen, setProductModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
   const [scheduleModalOpen, setScheduleModalOpen] = useState(false);
+  const [scheduleEditModalOpen, setScheduleEditModalOpen] = useState(false);
+  const [editingScheduleStep, setEditingScheduleStep] = useState(null);
   const [logModalOpen, setLogModalOpen] = useState(false);
 
   // Form - Product Fields
@@ -63,15 +82,23 @@ export default function SkincareRoutinePage() {
   const [prodExpiry, setProdExpiry] = useState('');
   const [prodNotes, setProdNotes] = useState('');
 
-  // Form - Schedule Fields
-  const [schedProdId, setSchedProdId] = useState('');
+  // Form - Schedule Fields (supports multi-select)
+  const [schedProdIds, setSchedProdIds] = useState([]); // Selected product IDs for bulk add
   const [schedDays, setSchedDays] = useState([false, false, false, false, false, false, false]); // Mon-Sun
   const [schedTime, setSchedTime] = useState('AM'); // 'AM' or 'PM'
+
+  // Form - Schedule Edit Fields
+  const [editSchedProdId, setEditSchedProdId] = useState('');
+  const [editSchedTime, setEditSchedTime] = useState('AM');
+  const [editSchedDay, setEditSchedDay] = useState(0);
 
   // Form - Log Fields
   const [logRoutineTime, setLogRoutineTime] = useState('AM');
   const [logSkinCondition, setLogSkinCondition] = useState('Bagus');
   const [logNotes, setLogNotes] = useState('');
+
+  // Drag state
+  const [draggedStepId, setDraggedStepId] = useState(null);
 
   useEffect(() => {
     if (user) {
@@ -297,13 +324,13 @@ CREATE POLICY "Users can manage their own skincare logs" ON public.skincare_logs
     }
   };
 
-  // Schedule CRUD
+  // Schedule CRUD (supports bulk selection)
   const handleOpenScheduleModal = () => {
     if (products.length === 0) {
       toast.error('Silakan tambahkan produk ke Rak Kosmetik terlebih dahulu!');
       return;
     }
-    setSchedProdId(products[0]?.id || '');
+    setSchedProdIds([]);
     setSchedDays([false, false, false, false, false, false, false]);
     setSchedTime('AM');
     setScheduleModalOpen(true);
@@ -319,15 +346,27 @@ CREATE POLICY "Users can manage their own skincare logs" ON public.skincare_logs
       return;
     }
 
+    if (schedProdIds.length === 0) {
+      toast.error('Silakan pilih minimal 1 produk!');
+      return;
+    }
+
     const tid = toast.loading('Menyusun jadwal...');
     try {
-      const inserts = selectedDays.map(day => ({
-        user_id: user.id,
-        day_of_week: day,
-        routine_time: schedTime,
-        product_id: schedProdId,
-        order_index: schedule.filter(s => s.day_of_week === day && s.routine_time === schedTime).length + 1
-      }));
+      const inserts = [];
+      selectedDays.forEach(day => {
+        const currentCount = schedule.filter(s => s.day_of_week === day && s.routine_time === schedTime).length;
+        
+        schedProdIds.forEach((prodId, index) => {
+          inserts.push({
+            user_id: user.id,
+            day_of_week: day,
+            routine_time: schedTime,
+            product_id: prodId,
+            order_index: currentCount + index + 1
+          });
+        });
+      });
 
       const { error } = await supabase
         .from('skincare_schedule')
@@ -343,7 +382,45 @@ CREATE POLICY "Users can manage their own skincare logs" ON public.skincare_logs
     }
   };
 
+  // Open Edit Schedule Modal
+  const handleOpenEditScheduleModal = (step) => {
+    setEditingScheduleStep(step);
+    setEditSchedProdId(step.product_id);
+    setEditSchedTime(step.routine_time);
+    setEditSchedDay(step.day_of_week);
+    setScheduleEditModalOpen(true);
+  };
+
+  const handleEditScheduleSubmit = async (e) => {
+    e.preventDefault();
+    if (!user || !editingScheduleStep) return;
+
+    const tid = toast.loading('Mengupdate langkah rutin...');
+    try {
+      const { error } = await supabase
+        .from('skincare_schedule')
+        .update({
+          product_id: editSchedProdId,
+          routine_time: editSchedTime,
+          day_of_week: editSchedDay
+        })
+        .eq('id', editingScheduleStep.id);
+
+      if (error) throw error;
+      toast.success('Langkah rutin berhasil diperbarui!', { id: tid });
+      setScheduleEditModalOpen(false);
+      fetchData();
+    } catch (err) {
+      console.error(err);
+      toast.error('Gagal memperbarui langkah rutin.', { id: tid });
+    }
+  };
+
   const handleDeleteSchedule = async (schedId) => {
+    const oldSchedule = [...schedule];
+    // Optimistic UI delete
+    setSchedule(schedule.filter(s => s.id !== schedId));
+
     try {
       const { error } = await supabase
         .from('skincare_schedule')
@@ -351,10 +428,176 @@ CREATE POLICY "Users can manage their own skincare logs" ON public.skincare_logs
         .eq('id', schedId);
       if (error) throw error;
       toast.success('Langkah rutin dilepas.');
-      fetchData();
     } catch (err) {
       console.error(err);
       toast.error('Gagal melepas langkah rutin.');
+      setSchedule(oldSchedule); // Rollback
+    }
+  };
+
+  // Reorder Schedule steps using mobile arrows (Optimistic UI)
+  const handleMoveStep = async (step, direction) => {
+    const oldSchedule = [...schedule];
+    const groupSorted = [...schedule.filter(s => s.day_of_week === step.day_of_week && s.routine_time === step.routine_time)]
+      .sort((a, b) => a.order_index - b.order_index);
+
+    const idx = groupSorted.findIndex(s => s.id === step.id);
+    if (idx === -1) return;
+
+    if (direction === 'up' && idx > 0) {
+      const temp = groupSorted[idx - 1];
+      groupSorted[idx - 1] = groupSorted[idx];
+      groupSorted[idx] = temp;
+    } else if (direction === 'down' && idx < groupSorted.length - 1) {
+      const temp = groupSorted[idx + 1];
+      groupSorted[idx + 1] = groupSorted[idx];
+      groupSorted[idx] = temp;
+    } else {
+      return;
+    }
+
+    // Apply Optimistic update locally
+    const updatedGroup = groupSorted.map((s, index) => ({ ...s, order_index: index + 1 }));
+    const newSchedule = schedule.map(s => {
+      const match = updatedGroup.find(ug => ug.id === s.id);
+      return match ? match : s;
+    });
+    setSchedule(newSchedule);
+
+    try {
+      const promises = updatedGroup.map((s) => {
+        return supabase
+          .from('skincare_schedule')
+          .update({ order_index: s.order_index })
+          .eq('id', s.id);
+      });
+      await Promise.all(promises);
+    } catch (err) {
+      console.error(err);
+      toast.error('Gagal mengubah urutan.');
+      setSchedule(oldSchedule); // Rollback
+    }
+  };
+
+  // HTML5 Drag and Drop handlers (Optimistic UI)
+  const handleDragStart = (e, stepId) => {
+    e.dataTransfer.setData('text/plain', stepId);
+    setDraggedStepId(stepId);
+  };
+
+  const handleDragOver = (e) => {
+    e.preventDefault();
+  };
+
+  const handleDrop = async (e, targetStep) => {
+    e.preventDefault();
+    const sourceStepId = e.dataTransfer.getData('text/plain') || draggedStepId;
+    if (!sourceStepId || sourceStepId === targetStep.id) return;
+
+    const sourceStep = schedule.find(s => s.id === sourceStepId);
+    if (!sourceStep) return;
+
+    const oldSchedule = [...schedule];
+
+    // Dragged to a different day/time group
+    if (sourceStep.day_of_week !== targetStep.day_of_week || sourceStep.routine_time !== targetStep.routine_time) {
+      const targetSteps = schedule.filter(s => s.day_of_week === targetStep.day_of_week && s.routine_time === targetStep.routine_time);
+      const newOrderIndex = targetSteps.length + 1;
+      
+      // Apply Optimistic state change
+      const updatedSteps = schedule.map(s => {
+        if (s.id === sourceStepId) {
+          return { ...s, day_of_week: targetStep.day_of_week, routine_time: targetStep.routine_time, order_index: newOrderIndex };
+        }
+        return s;
+      });
+      setSchedule(updatedSteps);
+
+      try {
+        const { error } = await supabase
+          .from('skincare_schedule')
+          .update({
+            day_of_week: targetStep.day_of_week,
+            routine_time: targetStep.routine_time,
+            order_index: newOrderIndex
+          })
+          .eq('id', sourceStepId);
+        if (error) throw error;
+      } catch (err) {
+        console.error(err);
+        toast.error('Gagal memindahkan langkah.');
+        setSchedule(oldSchedule); // Rollback
+      }
+      return;
+    }
+
+    // Reorder inside the same cell
+    const groupSorted = [...schedule.filter(s => s.day_of_week === targetStep.day_of_week && s.routine_time === targetStep.routine_time)]
+      .sort((a, b) => a.order_index - b.order_index);
+
+    const sourceIdx = groupSorted.findIndex(s => s.id === sourceStep.id);
+    const targetIdx = groupSorted.findIndex(s => s.id === targetStep.id);
+    if (sourceIdx === -1 || targetIdx === -1) return;
+
+    const [moved] = groupSorted.splice(sourceIdx, 1);
+    groupSorted.splice(targetIdx, 0, moved);
+
+    // Apply Optimistic local update
+    const updatedGroup = groupSorted.map((s, index) => ({ ...s, order_index: index + 1 }));
+    const newSchedule = schedule.map(s => {
+      const match = updatedGroup.find(ug => ug.id === s.id);
+      return match ? match : s;
+    });
+    setSchedule(newSchedule);
+
+    try {
+      const promises = updatedGroup.map((s) => {
+        return supabase
+          .from('skincare_schedule')
+          .update({ order_index: s.order_index })
+          .eq('id', s.id);
+      });
+      await Promise.all(promises);
+    } catch (err) {
+      console.error(err);
+      toast.error('Gagal memperbarui urutan.');
+      setSchedule(oldSchedule); // Rollback
+    }
+  };
+
+  const handleDropEmpty = async (e, dayIdx, routineTime) => {
+    e.preventDefault();
+    const sourceStepId = e.dataTransfer.getData('text/plain') || draggedStepId;
+    if (!sourceStepId) return;
+
+    const sourceStep = schedule.find(s => s.id === sourceStepId);
+    if (!sourceStep) return;
+
+    const oldSchedule = [...schedule];
+
+    // Optimistically update Day / Routine time
+    const updatedSteps = schedule.map(s => {
+      if (s.id === sourceStepId) {
+        return { ...s, day_of_week: dayIdx, routine_time: routineTime, order_index: 1 };
+      }
+      return s;
+    });
+    setSchedule(updatedSteps);
+
+    try {
+      const { error } = await supabase
+        .from('skincare_schedule')
+        .update({
+          day_of_week: dayIdx,
+          routine_time: routineTime,
+          order_index: 1
+        })
+        .eq('id', sourceStepId);
+      if (error) throw error;
+    } catch (err) {
+      console.error(err);
+      toast.error('Gagal memindahkan langkah.');
+      setSchedule(oldSchedule); // Rollback
     }
   };
 
@@ -439,8 +682,12 @@ CREATE POLICY "Users can manage their own skincare logs" ON public.skincare_logs
   const todayDateStr = formatLocalDate(new Date());
 
   // Filter schedules for today
-  const todayAmSchedule = schedule.filter(s => s.day_of_week === todayDay && s.routine_time === 'AM');
-  const todayPmSchedule = schedule.filter(s => s.day_of_week === todayDay && s.routine_time === 'PM');
+  const todayAmSchedule = schedule
+    .filter(s => s.day_of_week === todayDay && s.routine_time === 'AM')
+    .sort((a, b) => a.order_index - b.order_index);
+  const todayPmSchedule = schedule
+    .filter(s => s.day_of_week === todayDay && s.routine_time === 'PM')
+    .sort((a, b) => a.order_index - b.order_index);
 
   // Check logs for today
   const todayAmLog = logs.find(l => l.logged_date === todayDateStr && l.routine_time === 'AM');
@@ -460,18 +707,6 @@ CREATE POLICY "Users can manage their own skincare logs" ON public.skincare_logs
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
     if (diffDays <= 30) return 'warning';
     return 'safe';
-  };
-
-  // Emoji skin condition helper
-  const getSkinEmoji = (cond) => {
-    switch (cond) {
-      case 'Bagus': return '🌟';
-      case 'Kering': return '🍂';
-      case 'Jerawatan': return '🌋';
-      case 'Berminyak': return '💧';
-      case 'Kemerahan': return '🎈';
-      default: return '✨';
-    }
   };
 
   return (
@@ -585,7 +820,7 @@ CREATE POLICY "Users can manage their own skincare logs" ON public.skincare_logs
                   className={`px-3 py-2 rounded-xl transition-all cursor-pointer flex items-center justify-center ${
                     shelfLayoutMode === 'list'
                       ? 'bg-blue-600 text-white shadow-xs dark:bg-blue-600'
-                      : 'text-slate-400 hover:text-slate-755 dark:text-slate-500 dark:hover:text-slate-350'
+                      : 'text-slate-400 hover:text-slate-755 dark:text-slate-500 dark:hover:text-slate-355'
                   }`}
                   title="Tampilan Tabel"
                 >
@@ -596,7 +831,7 @@ CREATE POLICY "Users can manage their own skincare logs" ON public.skincare_logs
                   className={`px-3 py-2 rounded-xl transition-all cursor-pointer flex items-center justify-center ${
                     shelfLayoutMode === 'grid'
                       ? 'bg-blue-600 text-white shadow-xs dark:bg-blue-600'
-                      : 'text-slate-400 hover:text-slate-755 dark:text-slate-500 dark:hover:text-slate-350'
+                      : 'text-slate-400 hover:text-slate-755 dark:text-slate-500 dark:hover:text-slate-355'
                   }`}
                   title="Tampilan Grid"
                 >
@@ -624,7 +859,7 @@ CREATE POLICY "Users can manage their own skincare logs" ON public.skincare_logs
                   {/* AM Routine Card */}
                   <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-xs flex flex-col justify-between gap-5 relative overflow-hidden">
                     <div className="space-y-4">
-                      <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800/85 pb-3">
+                      <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
                         <div className="flex items-center gap-2">
                           <span className="text-xl">🌅</span>
                           <div>
@@ -656,7 +891,7 @@ CREATE POLICY "Users can manage their own skincare logs" ON public.skincare_logs
                         {todayAmSchedule.length > 0 ? (
                           todayAmSchedule.map((step, idx) => (
                             <div key={step.id} className="flex items-center gap-3 p-2 bg-slate-50 dark:bg-slate-950/40 border border-slate-100 dark:border-slate-800 rounded-xl">
-                              <span className="text-[10px] font-extrabold w-5 h-5 rounded-full bg-slate-200 dark:bg-slate-800 flex items-center justify-center text-slate-650 dark:text-slate-400">{idx + 1}</span>
+                              <span className="text-[10px] font-extrabold w-5 h-5 rounded-full bg-slate-200 dark:bg-slate-800 flex items-center justify-center text-slate-600 dark:text-slate-400">{idx + 1}</span>
                               <div className="min-w-0 flex-1">
                                 <h4 className="text-xs font-bold text-slate-900 dark:text-slate-200 truncate">{step.skincare_products?.name}</h4>
                                 <p className="text-[9px] text-slate-400 dark:text-slate-500 font-semibold uppercase">{step.skincare_products?.category} ({step.skincare_products?.brand})</p>
@@ -664,7 +899,7 @@ CREATE POLICY "Users can manage their own skincare logs" ON public.skincare_logs
                             </div>
                           ))
                         ) : (
-                          <p className="text-xs text-slate-455 dark:text-slate-550 italic py-4 text-center">Tidak ada produk dijadwalkan untuk Pagi hari ini.</p>
+                          <p className="text-xs text-slate-400 dark:text-slate-500 italic py-4 text-center">Tidak ada produk dijadwalkan untuk Pagi hari ini.</p>
                         )}
                       </div>
                     </div>
@@ -683,7 +918,7 @@ CREATE POLICY "Users can manage their own skincare logs" ON public.skincare_logs
                   {/* PM Routine Card */}
                   <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-xs flex flex-col justify-between gap-5 relative overflow-hidden">
                     <div className="space-y-4">
-                      <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800/85 pb-3">
+                      <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
                         <div className="flex items-center gap-2">
                           <span className="text-xl">🌃</span>
                           <div>
@@ -699,7 +934,7 @@ CREATE POLICY "Users can manage their own skincare logs" ON public.skincare_logs
                             </span>
                             <button
                               onClick={() => handleDeleteLog(todayPmLog.id)}
-                              className="p-1 hover:bg-rose-50 dark:hover:bg-rose-950/30 text-slate-400 hover:text-rose-600 rounded-lg transition-colors cursor-pointer"
+                              className="p-1 hover:bg-rose-50 dark:hover:bg-rose-950/30 text-slate-400 hover:text-rose-650 rounded-lg transition-colors cursor-pointer"
                               title="Batalkan centang"
                             >
                               <X className="w-3.5 h-3.5" />
@@ -715,7 +950,7 @@ CREATE POLICY "Users can manage their own skincare logs" ON public.skincare_logs
                         {todayPmSchedule.length > 0 ? (
                           todayPmSchedule.map((step, idx) => (
                             <div key={step.id} className="flex items-center gap-3 p-2 bg-slate-50 dark:bg-slate-950/40 border border-slate-100 dark:border-slate-800 rounded-xl">
-                              <span className="text-[10px] font-extrabold w-5 h-5 rounded-full bg-slate-200 dark:bg-slate-800 flex items-center justify-center text-slate-655 dark:text-slate-400">{idx + 1}</span>
+                              <span className="text-[10px] font-extrabold w-5 h-5 rounded-full bg-slate-200 dark:bg-slate-800 flex items-center justify-center text-slate-600 dark:text-slate-400">{idx + 1}</span>
                               <div className="min-w-0 flex-1">
                                 <h4 className="text-xs font-bold text-slate-900 dark:text-slate-200 truncate">{step.skincare_products?.name}</h4>
                                 <p className="text-[9px] text-slate-400 dark:text-slate-500 font-semibold uppercase">{step.skincare_products?.category} ({step.skincare_products?.brand})</p>
@@ -723,7 +958,7 @@ CREATE POLICY "Users can manage their own skincare logs" ON public.skincare_logs
                             </div>
                           ))
                         ) : (
-                          <p className="text-xs text-slate-455 dark:text-slate-550 italic py-4 text-center">Tidak ada produk dijadwalkan untuk Malam hari ini.</p>
+                          <p className="text-xs text-slate-400 dark:text-slate-500 italic py-4 text-center">Tidak ada produk dijadwalkan untuk Malam hari ini.</p>
                         )}
                       </div>
                     </div>
@@ -749,6 +984,9 @@ CREATE POLICY "Users can manage their own skincare logs" ON public.skincare_logs
                   className="space-y-6"
                 >
                   <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-xs overflow-x-auto">
+                    <p className="text-[10px] text-slate-405 dark:text-slate-500 mb-4 italic">
+                      💡 Info: Anda dapat menarik & melepas (Drag & Drop) produk di bawah untuk memindahkan jadwal hari/waktu atau menyusun urutan skincare. Gunakan tombol panah pada mobile.
+                    </p>
                     <table className="w-full text-left border-collapse min-w-[700px]">
                       <thead>
                         <tr className="border-b border-slate-100 dark:border-slate-800 text-[10px] font-extrabold uppercase text-slate-400 tracking-wider">
@@ -759,8 +997,12 @@ CREATE POLICY "Users can manage their own skincare logs" ON public.skincare_logs
                       </thead>
                       <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-xs">
                         {DAYS_INDONESIAN.map((dayName, dayIdx) => {
-                          const amSteps = schedule.filter(s => s.day_of_week === dayIdx && s.routine_time === 'AM');
-                          const pmSteps = schedule.filter(s => s.day_of_week === dayIdx && s.routine_time === 'PM');
+                          const amSteps = schedule
+                            .filter(s => s.day_of_week === dayIdx && s.routine_time === 'AM')
+                            .sort((a, b) => a.order_index - b.order_index);
+                          const pmSteps = schedule
+                            .filter(s => s.day_of_week === dayIdx && s.routine_time === 'PM')
+                            .sort((a, b) => a.order_index - b.order_index);
                           const isToday = todayDay === dayIdx;
 
                           return (
@@ -769,53 +1011,135 @@ CREATE POLICY "Users can manage their own skincare logs" ON public.skincare_logs
                                 <span className={`inline-flex px-2 py-0.5 rounded-md text-[10px] font-bold border ${
                                   isToday
                                     ? 'bg-pink-500 text-white border-pink-500 shadow-xs'
-                                    : 'text-slate-700 dark:text-slate-350 border-slate-200 dark:border-slate-700'
+                                    : 'text-slate-700 dark:text-slate-355 border-slate-200 dark:border-slate-700'
                                 }`}>
                                   {dayName}
                                 </span>
                               </td>
                               
-                              <td className="py-3 px-4 align-top space-y-2">
+                              {/* AM Cell */}
+                              <td 
+                                className="py-3 px-4 align-top space-y-2 min-h-[80px]"
+                                onDragOver={handleDragOver}
+                                onDrop={(e) => handleDropEmpty(e, dayIdx, 'AM')}
+                              >
                                 {amSteps.length > 0 ? (
-                                  amSteps.map((step) => (
-                                    <div key={step.id} className="group flex items-center justify-between p-2 rounded-xl bg-slate-50 dark:bg-slate-950/45 border border-slate-100 dark:border-slate-800 hover:border-slate-200 dark:hover:border-slate-700 transition-all max-w-sm">
+                                  amSteps.map((step, idx) => (
+                                    <div 
+                                      key={step.id} 
+                                      draggable={true}
+                                      onDragStart={(e) => handleDragStart(e, step.id)}
+                                      onDragOver={handleDragOver}
+                                      onDrop={(e) => handleDrop(e, step)}
+                                      className="group flex items-center justify-between p-2 rounded-xl bg-slate-50 dark:bg-slate-950/45 border border-slate-100 dark:border-slate-800 hover:border-slate-200 dark:hover:border-slate-700 transition-all max-w-sm cursor-grab active:cursor-grabbing"
+                                    >
                                       <div className="min-w-0 pr-2">
                                         <p className="font-bold text-slate-900 dark:text-slate-200 truncate">{step.skincare_products?.name}</p>
                                         <p className="text-[9px] text-slate-400 dark:text-slate-500 font-semibold">{step.skincare_products?.brand}</p>
                                       </div>
-                                      <button
-                                        onClick={() => handleDeleteSchedule(step.id)}
-                                        className="p-1 hover:bg-rose-50 dark:hover:bg-rose-950/30 text-slate-400 hover:text-rose-650 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer flex-shrink-0"
-                                        title="Hapus langkah ini"
-                                      >
-                                        <Trash2 className="w-3.5 h-3.5" />
-                                      </button>
+                                      <div className="flex items-center gap-1.5 flex-shrink-0">
+                                        {idx > 0 && (
+                                          <button
+                                            onClick={() => handleMoveStep(step, 'up')}
+                                            className="p-1 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-750 dark:hover:text-slate-300 rounded-lg cursor-pointer"
+                                            title="Pindahkan ke atas"
+                                          >
+                                            <ArrowUp className="w-3.5 h-3.5" />
+                                          </button>
+                                        )}
+                                        {idx < amSteps.length - 1 && (
+                                          <button
+                                            onClick={() => handleMoveStep(step, 'down')}
+                                            className="p-1 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-750 dark:hover:text-slate-300 rounded-lg cursor-pointer"
+                                            title="Pindahkan ke bawah"
+                                          >
+                                            <ArrowDown className="w-3.5 h-3.5" />
+                                          </button>
+                                        )}
+                                        <button
+                                          onClick={() => handleOpenEditScheduleModal(step)}
+                                          className="p-1 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-blue-600 rounded-lg cursor-pointer"
+                                          title="Edit langkah"
+                                        >
+                                          <Pencil className="w-3.5 h-3.5" />
+                                        </button>
+                                        <button
+                                          onClick={() => handleDeleteSchedule(step.id)}
+                                          className="p-1 hover:bg-rose-50 dark:hover:bg-rose-950/30 text-slate-400 hover:text-rose-650 rounded-lg cursor-pointer"
+                                          title="Hapus langkah ini"
+                                        >
+                                          <Trash2 className="w-3.5 h-3.5" />
+                                        </button>
+                                      </div>
                                     </div>
                                   ))
                                 ) : (
-                                  <span className="text-[10px] text-slate-400 italic">Kosong</span>
+                                  <div className="border border-dashed border-slate-200 dark:border-slate-800 rounded-xl p-3 text-center text-[10px] text-slate-400 select-none">
+                                    Tarik ke sini
+                                  </div>
                                 )}
                               </td>
 
-                              <td className="py-3 px-4 align-top space-y-2">
+                              {/* PM Cell */}
+                              <td 
+                                className="py-3 px-4 align-top space-y-2 min-h-[80px]"
+                                onDragOver={handleDragOver}
+                                onDrop={(e) => handleDropEmpty(e, dayIdx, 'PM')}
+                              >
                                 {pmSteps.length > 0 ? (
-                                  pmSteps.map((step) => (
-                                    <div key={step.id} className="group flex items-center justify-between p-2 rounded-xl bg-slate-50 dark:bg-slate-950/45 border border-slate-100 dark:border-slate-800 hover:border-slate-200 dark:hover:border-slate-700 transition-all max-w-sm">
+                                  pmSteps.map((step, idx) => (
+                                    <div 
+                                      key={step.id} 
+                                      draggable={true}
+                                      onDragStart={(e) => handleDragStart(e, step.id)}
+                                      onDragOver={handleDragOver}
+                                      onDrop={(e) => handleDrop(e, step)}
+                                      className="group flex items-center justify-between p-2 rounded-xl bg-slate-50 dark:bg-slate-950/45 border border-slate-100 dark:border-slate-800 hover:border-slate-200 dark:hover:border-slate-700 transition-all max-w-sm cursor-grab active:cursor-grabbing"
+                                    >
                                       <div className="min-w-0 pr-2">
                                         <p className="font-bold text-slate-900 dark:text-slate-200 truncate">{step.skincare_products?.name}</p>
                                         <p className="text-[9px] text-slate-400 dark:text-slate-500 font-semibold">{step.skincare_products?.brand}</p>
                                       </div>
-                                      <button
-                                        onClick={() => handleDeleteSchedule(step.id)}
-                                        className="p-1 hover:bg-rose-50 dark:hover:bg-rose-950/30 text-slate-400 hover:text-rose-655 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer flex-shrink-0"
-                                        title="Hapus langkah ini"
-                                      >
-                                        <Trash2 className="w-3.5 h-3.5" />
-                                      </button>
+                                      <div className="flex items-center gap-1.5 flex-shrink-0">
+                                        {idx > 0 && (
+                                          <button
+                                            onClick={() => handleMoveStep(step, 'up')}
+                                            className="p-1 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-750 dark:hover:text-slate-300 rounded-lg cursor-pointer"
+                                            title="Pindahkan ke atas"
+                                          >
+                                            <ArrowUp className="w-3.5 h-3.5" />
+                                          </button>
+                                        )}
+                                        {idx < pmSteps.length - 1 && (
+                                          <button
+                                            onClick={() => handleMoveStep(step, 'down')}
+                                            className="p-1 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-750 dark:hover:text-slate-300 rounded-lg cursor-pointer"
+                                            title="Pindahkan ke bawah"
+                                          >
+                                            <ArrowDown className="w-3.5 h-3.5" />
+                                          </button>
+                                        )}
+                                        <button
+                                          onClick={() => handleOpenEditScheduleModal(step)}
+                                          className="p-1 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-blue-600 rounded-lg cursor-pointer"
+                                          title="Edit langkah"
+                                        >
+                                          <Pencil className="w-3.5 h-3.5" />
+                                        </button>
+                                        <button
+                                          onClick={() => handleDeleteSchedule(step.id)}
+                                          className="p-1 hover:bg-rose-50 dark:hover:bg-rose-950/30 text-slate-400 hover:text-rose-655 rounded-lg cursor-pointer"
+                                          title="Hapus langkah ini"
+                                        >
+                                          <Trash2 className="w-3.5 h-3.5" />
+                                        </button>
+                                      </div>
                                     </div>
                                   ))
                                 ) : (
-                                  <span className="text-[10px] text-slate-400 italic">Kosong</span>
+                                  <div className="border border-dashed border-slate-200 dark:border-slate-800 rounded-xl p-3 text-center text-[10px] text-slate-400 select-none">
+                                    Tarik ke sini
+                                  </div>
                                 )}
                               </td>
                             </tr>
@@ -834,8 +1158,6 @@ CREATE POLICY "Users can manage their own skincare logs" ON public.skincare_logs
                   exit={{ opacity: 0, y: -10 }}
                   className="space-y-6"
                 >
-
-
                   {products.length > 0 ? (
                     shelfLayoutMode === 'list' ? (
                       /* List Table Layout for Shelf */
@@ -864,7 +1186,7 @@ CREATE POLICY "Users can manage their own skincare logs" ON public.skincare_logs
                                       {prod.brand}
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap">
-                                      <span className="inline-flex px-2 py-0.5 rounded-full text-[9px] font-extrabold uppercase border bg-slate-50 dark:bg-slate-950 text-slate-655 dark:text-slate-400 border-slate-200 dark:border-slate-800">
+                                      <span className="inline-flex px-2.5 py-0.5 rounded-full text-[9px] font-extrabold uppercase border bg-slate-50 dark:bg-slate-950 text-slate-655 dark:text-slate-400 border-slate-200 dark:border-slate-800">
                                         {prod.category}
                                       </span>
                                     </td>
@@ -925,7 +1247,7 @@ CREATE POLICY "Users can manage their own skincare logs" ON public.skincare_logs
                                 <div className="flex items-start justify-between gap-3">
                                   <div className="min-w-0">
                                     <h3 className="font-bold text-slate-900 dark:text-slate-100 text-sm truncate">{prod.name}</h3>
-                                    <p className="text-[10px] text-slate-455 dark:text-slate-500 font-semibold">{prod.brand}</p>
+                                    <p className="text-[10px] text-slate-455 dark:text-slate-550 font-semibold">{prod.brand}</p>
                                   </div>
 
                                   <span className="inline-flex px-2.5 py-0.5 rounded-full text-[9px] font-extrabold uppercase border bg-slate-50 dark:bg-slate-950 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-800">
@@ -1012,7 +1334,7 @@ CREATE POLICY "Users can manage their own skincare logs" ON public.skincare_logs
                 </h3>
                 <button
                   onClick={() => setProductModalOpen(false)}
-                  className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                  className="p-1 text-slate-400 hover:text-slate-655 dark:hover:text-slate-200 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -1083,7 +1405,7 @@ CREATE POLICY "Users can manage their own skincare logs" ON public.skincare_logs
                   <button
                     type="button"
                     onClick={() => setProductModalOpen(false)}
-                    className="flex-1 py-2.5 border border-slate-200 dark:border-slate-800 text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 text-xs font-semibold rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors cursor-pointer text-center"
+                    className="flex-1 py-2.5 border border-slate-200 dark:border-slate-800 text-slate-500 hover:text-slate-750 dark:hover:text-slate-300 text-xs font-semibold rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors cursor-pointer text-center"
                   >
                     Batal
                   </button>
@@ -1100,7 +1422,7 @@ CREATE POLICY "Users can manage their own skincare logs" ON public.skincare_logs
         )}
       </AnimatePresence>
 
-      {/* Schedule Modal */}
+      {/* Schedule Modal (Bulk Multi-select with Interactive Premium Cards) */}
       <AnimatePresence>
         {scheduleModalOpen && (
           <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
@@ -1108,7 +1430,7 @@ CREATE POLICY "Users can manage their own skincare logs" ON public.skincare_logs
               initial={{ opacity: 0, scale: 0.95, y: 15 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 15 }}
-              className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl max-w-md w-full shadow-2xl overflow-hidden relative z-50 animate-in fade-in zoom-in-95 duration-200"
+              className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl max-w-lg w-full shadow-2xl overflow-hidden relative z-50 animate-in fade-in zoom-in-95 duration-200"
             >
               <div className="flex items-center justify-between px-6 py-4.5 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/20">
                 <h3 className="text-sm font-bold text-slate-900 dark:text-slate-200 flex items-center gap-2">
@@ -1117,25 +1439,79 @@ CREATE POLICY "Users can manage their own skincare logs" ON public.skincare_logs
                 </h3>
                 <button
                   onClick={() => setScheduleModalOpen(false)}
-                  className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                  className="p-1 text-slate-400 hover:text-slate-655 dark:hover:text-slate-200 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
                 >
                   <X className="w-4 h-4" />
                 </button>
               </div>
 
               <form onSubmit={handleScheduleSubmit} className="p-6 space-y-4 text-left">
+                
+                {/* Premium checklist cards with scroll styling */}
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-extrabold uppercase tracking-wider text-slate-450 dark:text-slate-400">Pilih Produk</label>
-                  <select
-                    value={schedProdId}
-                    onChange={(e) => setSchedProdId(e.target.value)}
-                    required
-                    className="w-full px-3 py-2 text-xs border border-slate-200 dark:border-slate-800 rounded-xl bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-pink-500"
-                  >
-                    {products.map(p => (
-                      <option key={p.id} value={p.id}>{p.name} ({p.brand})</option>
-                    ))}
-                  </select>
+                  <label className="text-[10px] font-extrabold uppercase tracking-wider text-slate-450 dark:text-slate-400 block mb-1">
+                    Pilih Produk Skincare
+                  </label>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (schedProdIds.length === products.length) {
+                          setSchedProdIds([]);
+                        } else {
+                          setSchedProdIds(products.map(p => p.id));
+                        }
+                      }}
+                      className="text-[10px] font-bold text-blue-600 hover:text-blue-750 dark:text-blue-450 dark:hover:text-blue-400 cursor-pointer"
+                    >
+                      {schedProdIds.length === products.length ? 'Batal Pilih Semua' : 'Pilih Semua'}
+                    </button>
+                    <span className="text-[10px] text-slate-400 font-semibold">{schedProdIds.length} terpilih</span>
+                  </div>
+                  
+                  <div className="border border-slate-200 dark:border-slate-800 rounded-xl bg-slate-50 dark:bg-slate-950 p-2.5 max-h-56 overflow-y-auto space-y-1.5 scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-800">
+                    {products.map(p => {
+                      const isChecked = schedProdIds.includes(p.id);
+                      return (
+                        <div
+                          key={p.id}
+                          onClick={() => {
+                            if (isChecked) {
+                              setSchedProdIds(schedProdIds.filter(id => id !== p.id));
+                            } else {
+                              setSchedProdIds([...schedProdIds, p.id]);
+                            }
+                          }}
+                          className={`flex items-center justify-between p-2.5 rounded-xl border transition-all cursor-pointer select-none ${
+                            isChecked
+                              ? 'bg-blue-50/15 border-blue-500/80 dark:bg-blue-950/20'
+                              : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-sm ${
+                              isChecked
+                                ? 'bg-blue-500 text-white'
+                                : 'bg-slate-100 dark:bg-slate-800 text-slate-500'
+                            }`}>
+                              {getCategoryIcon(p.category)}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <p className="font-bold text-xs text-slate-850 dark:text-slate-200 truncate">{p.name}</p>
+                              <p className="text-[9px] text-slate-400 dark:text-slate-500">{p.brand} • {p.category}</p>
+                            </div>
+                          </div>
+                          <div className={`w-4 w-4 h-4 rounded-full border flex items-center justify-center transition-all flex-shrink-0 ${
+                            isChecked
+                              ? 'bg-blue-600 border-blue-600 text-white scale-110'
+                              : 'border-slate-300 dark:border-slate-700 bg-transparent'
+                          }`}>
+                            {isChecked && <Check className="w-2.5 h-2.5 stroke-[3]" />}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
 
                 <div className="space-y-1.5">
@@ -1149,7 +1525,7 @@ CREATE POLICY "Users can manage their own skincare logs" ON public.skincare_logs
                         className={`py-2 rounded-xl text-[11px] font-bold border transition-all cursor-pointer ${
                           schedTime === time
                             ? 'bg-pink-50 border-pink-300 dark:bg-pink-950/20 dark:border-pink-900 text-pink-600 dark:text-pink-400 shadow-xs font-bold'
-                            : 'border-slate-200 dark:border-slate-800 text-slate-500 hover:text-slate-700 dark:hover:text-slate-350'
+                            : 'border-slate-200 dark:border-slate-800 text-slate-500 hover:text-slate-750 dark:hover:text-slate-355'
                         }`}
                       >
                         {time === 'AM' ? '🌅 Pagi (AM)' : '🌃 Malam (PM)'}
@@ -1159,7 +1535,7 @@ CREATE POLICY "Users can manage their own skincare logs" ON public.skincare_logs
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-extrabold uppercase tracking-wider text-slate-450 block mb-1">Pilih Hari Rutin</label>
+                  <label className="text-[10px] font-extrabold uppercase tracking-wider text-slate-455 block mb-1">Pilih Hari Rutin</label>
                   <div className="grid grid-cols-4 gap-2">
                     {DAYS_INDONESIAN.map((day, idx) => {
                       const isSelected = schedDays[idx];
@@ -1189,7 +1565,7 @@ CREATE POLICY "Users can manage their own skincare logs" ON public.skincare_logs
                   <button
                     type="button"
                     onClick={() => setScheduleModalOpen(false)}
-                    className="flex-1 py-2.5 border border-slate-200 dark:border-slate-800 text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 text-xs font-semibold rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors cursor-pointer text-center"
+                    className="flex-1 py-2.5 border border-slate-200 dark:border-slate-800 text-slate-500 hover:text-slate-750 dark:hover:text-slate-300 text-xs font-semibold rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors cursor-pointer text-center"
                   >
                     Batal
                   </button>
@@ -1198,6 +1574,99 @@ CREATE POLICY "Users can manage their own skincare logs" ON public.skincare_logs
                     className="flex-1 py-2.5 bg-gradient-to-r from-pink-500 to-rose-600 hover:from-pink-600 hover:to-rose-700 text-white text-xs font-semibold rounded-xl shadow-md transition-all active:scale-[0.98] cursor-pointer text-center"
                   >
                     Simpan Langkah
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Schedule Edit Modal */}
+      <AnimatePresence>
+        {scheduleEditModalOpen && (
+          <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 15 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 15 }}
+              className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl max-w-md w-full shadow-2xl overflow-hidden relative z-50 animate-in fade-in zoom-in-95 duration-200"
+            >
+              <div className="flex items-center justify-between px-6 py-4.5 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/20">
+                <h3 className="text-sm font-bold text-slate-900 dark:text-slate-200 flex items-center gap-2">
+                  <Calendar className="w-4 h-4 text-pink-500" />
+                  Edit Langkah Rutinitas
+                </h3>
+                <button
+                  onClick={() => setScheduleEditModalOpen(false)}
+                  className="p-1 text-slate-400 hover:text-slate-655 dark:hover:text-slate-200 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <form onSubmit={handleEditScheduleSubmit} className="p-6 space-y-4 text-left">
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-extrabold uppercase tracking-wider text-slate-455 dark:text-slate-400 block mb-1">Pilih Produk</label>
+                  <select
+                    value={editSchedProdId}
+                    onChange={(e) => setEditSchedProdId(e.target.value)}
+                    required
+                    className="w-full px-3 py-2 text-xs border border-slate-200 dark:border-slate-800 rounded-xl bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-pink-500"
+                  >
+                    {products.map(p => (
+                      <option key={p.id} value={p.id}>{p.name} ({p.brand})</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-extrabold uppercase tracking-wider text-slate-450 dark:text-slate-400">Waktu Rutinitas</label>
+                  <div className="grid grid-cols-2 gap-3">
+                    {['AM', 'PM'].map(time => (
+                      <button
+                        key={time}
+                        type="button"
+                        onClick={() => setEditSchedTime(time)}
+                        className={`py-2 rounded-xl text-[11px] font-bold border transition-all cursor-pointer ${
+                          editSchedTime === time
+                            ? 'bg-pink-50 border-pink-300 dark:bg-pink-950/20 dark:border-pink-900 text-pink-600 dark:text-pink-400 shadow-xs font-bold'
+                            : 'border-slate-200 dark:border-slate-800 text-slate-500 hover:text-slate-700 dark:hover:text-slate-355'
+                        }`}
+                      >
+                        {time === 'AM' ? '🌅 Pagi (AM)' : '🌃 Malam (PM)'}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-extrabold uppercase tracking-wider text-slate-455 block mb-1">Hari Rutin</label>
+                  <select
+                    value={editSchedDay}
+                    onChange={(e) => setEditSchedDay(Number(e.target.value))}
+                    required
+                    className="w-full px-3 py-2 text-xs border border-slate-200 dark:border-slate-800 rounded-xl bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-pink-500"
+                  >
+                    {DAYS_INDONESIAN.map((day, idx) => (
+                      <option key={day} value={idx}>{day}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="flex gap-3 pt-3">
+                  <button
+                    type="button"
+                    onClick={() => setScheduleEditModalOpen(false)}
+                    className="flex-1 py-2.5 border border-slate-200 dark:border-slate-800 text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 text-xs font-semibold rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors cursor-pointer text-center"
+                  >
+                    Batal
+                  </button>
+                  <button
+                    type="submit"
+                    className="flex-1 py-2.5 bg-gradient-to-r from-pink-500 to-rose-600 hover:from-pink-600 hover:to-rose-700 text-white text-xs font-semibold rounded-xl shadow-md transition-all active:scale-[0.98] cursor-pointer text-center"
+                  >
+                    Simpan Perubahan
                   </button>
                 </div>
               </form>
@@ -1223,7 +1692,7 @@ CREATE POLICY "Users can manage their own skincare logs" ON public.skincare_logs
                 </h3>
                 <button
                   onClick={() => setLogModalOpen(false)}
-                  className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                  className="p-1 text-slate-400 hover:text-slate-605 dark:hover:text-slate-205 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -1250,7 +1719,7 @@ CREATE POLICY "Users can manage their own skincare logs" ON public.skincare_logs
                           className={`flex flex-col items-center justify-center py-2.5 px-1.5 rounded-xl border transition-all cursor-pointer ${
                             isSelected
                               ? 'bg-emerald-50 border-emerald-300 dark:bg-emerald-950/20 dark:border-emerald-900 text-emerald-600 dark:text-emerald-400 shadow-xs font-bold scale-[1.03]'
-                              : 'border-slate-200 dark:border-slate-800 text-slate-500 hover:text-slate-700 dark:hover:text-slate-350'
+                              : 'border-slate-200 dark:border-slate-800 text-slate-505 hover:text-slate-705 dark:hover:text-slate-355'
                           }`}
                         >
                           <span className="text-lg mb-0.5">{item.emoji}</span>
