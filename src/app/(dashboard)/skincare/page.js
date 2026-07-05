@@ -351,6 +351,40 @@ CREATE POLICY "Users can manage their own skincare logs" ON public.skincare_logs
       return;
     }
 
+    // Validation checks
+    for (const day of selectedDays) {
+      const dayName = DAYS_INDONESIAN[day];
+      
+      for (const prodId of schedProdIds) {
+        const prodObj = products.find(p => p.id === prodId);
+        if (!prodObj) continue;
+
+        // Check if exact same product already exists on that day and time
+        const isAlreadyAdded = schedule.some(s => 
+          s.day_of_week === day && 
+          s.routine_time === schedTime && 
+          s.product_id === prodId
+        );
+        if (isAlreadyAdded) {
+          toast.error(`Produk "${prodObj.name}" sudah ada di jadwal ${dayName} ${schedTime === 'AM' ? 'Pagi' : 'Malam'}!`);
+          return;
+        }
+
+        // Check if there is already a sunscreen in the AM for this day
+        if (schedTime === 'AM' && prodObj.category === 'Sunscreen') {
+          const hasSunscreenInAM = schedule.some(s => 
+            s.day_of_week === day && 
+            s.routine_time === 'AM' && 
+            s.skincare_products?.category === 'Sunscreen'
+          );
+          if (hasSunscreenInAM) {
+            toast.error(`Jadwal Pagi ${dayName} sudah memiliki Sunscreen! Anda tidak bisa menambahkan Sunscreen ganda.`);
+            return;
+          }
+        }
+      }
+    }
+
     const tid = toast.loading('Menyusun jadwal...');
     try {
       const inserts = [];
@@ -394,6 +428,35 @@ CREATE POLICY "Users can manage their own skincare logs" ON public.skincare_logs
   const handleEditScheduleSubmit = async (e) => {
     e.preventDefault();
     if (!user || !editingScheduleStep) return;
+
+    const prodObj = products.find(p => p.id === editSchedProdId);
+    if (!prodObj) return;
+
+    // 1. Same product check
+    const isAlreadyAdded = schedule.some(s => 
+      s.id !== editingScheduleStep.id &&
+      s.day_of_week === editSchedDay && 
+      s.routine_time === editSchedTime && 
+      s.product_id === editSchedProdId
+    );
+    if (isAlreadyAdded) {
+      toast.error(`Produk "${prodObj.name}" sudah ada di jadwal ${DAYS_INDONESIAN[editSchedDay]} ${editSchedTime === 'AM' ? 'Pagi' : 'Malam'}!`);
+      return;
+    }
+
+    // 2. Double Sunscreen check
+    if (editSchedTime === 'AM' && prodObj.category === 'Sunscreen') {
+      const hasSunscreenInAM = schedule.some(s => 
+        s.id !== editingScheduleStep.id &&
+        s.day_of_week === editSchedDay && 
+        s.routine_time === 'AM' && 
+        s.skincare_products?.category === 'Sunscreen'
+      );
+      if (hasSunscreenInAM) {
+        toast.error(`Jadwal Pagi ${DAYS_INDONESIAN[editSchedDay]} sudah memiliki Sunscreen! Anda tidak bisa menambahkan Sunscreen ganda.`);
+        return;
+      }
+    }
 
     const tid = toast.loading('Mengupdate langkah rutin...');
     try {
@@ -501,6 +564,35 @@ CREATE POLICY "Users can manage their own skincare logs" ON public.skincare_logs
 
     // Dragged to a different day/time group
     if (sourceStep.day_of_week !== targetStep.day_of_week || sourceStep.routine_time !== targetStep.routine_time) {
+      const prodObj = products.find(p => p.id === sourceStep.product_id);
+      if (!prodObj) return;
+
+      // 1. Same product check
+      const isAlreadyAdded = schedule.some(s => 
+        s.id !== sourceStepId &&
+        s.day_of_week === targetStep.day_of_week && 
+        s.routine_time === targetStep.routine_time && 
+        s.product_id === sourceStep.product_id
+      );
+      if (isAlreadyAdded) {
+        toast.error(`Produk "${prodObj.name}" sudah ada di jadwal ${DAYS_INDONESIAN[targetStep.day_of_week]} ${targetStep.routine_time === 'AM' ? 'Pagi' : 'Malam'}!`);
+        return;
+      }
+
+      // 2. Double Sunscreen check
+      if (targetStep.routine_time === 'AM' && prodObj.category === 'Sunscreen') {
+        const hasSunscreenInAM = schedule.some(s => 
+          s.id !== sourceStepId &&
+          s.day_of_week === targetStep.day_of_week && 
+          s.routine_time === 'AM' && 
+          s.skincare_products?.category === 'Sunscreen'
+        );
+        if (hasSunscreenInAM) {
+          toast.error(`Jadwal Pagi ${DAYS_INDONESIAN[targetStep.day_of_week]} sudah memiliki Sunscreen! Anda tidak bisa menambahkan Sunscreen ganda.`);
+          return;
+        }
+      }
+
       const targetSteps = schedule.filter(s => s.day_of_week === targetStep.day_of_week && s.routine_time === targetStep.routine_time);
       const newOrderIndex = targetSteps.length + 1;
       
@@ -573,6 +665,35 @@ CREATE POLICY "Users can manage their own skincare logs" ON public.skincare_logs
     const sourceStep = schedule.find(s => s.id === sourceStepId);
     if (!sourceStep) return;
 
+    const prodObj = products.find(p => p.id === sourceStep.product_id);
+    if (!prodObj) return;
+
+    // 1. Same product check
+    const isAlreadyAdded = schedule.some(s => 
+      s.id !== sourceStepId &&
+      s.day_of_week === dayIdx && 
+      s.routine_time === routineTime && 
+      s.product_id === sourceStep.product_id
+    );
+    if (isAlreadyAdded) {
+      toast.error(`Produk "${prodObj.name}" sudah ada di jadwal ${DAYS_INDONESIAN[dayIdx]} ${routineTime === 'AM' ? 'Pagi' : 'Malam'}!`);
+      return;
+    }
+
+    // 2. Double Sunscreen check
+    if (routineTime === 'AM' && prodObj.category === 'Sunscreen') {
+      const hasSunscreenInAM = schedule.some(s => 
+        s.id !== sourceStepId &&
+        s.day_of_week === dayIdx && 
+        s.routine_time === 'AM' && 
+        s.skincare_products?.category === 'Sunscreen'
+      );
+      if (hasSunscreenInAM) {
+        toast.error(`Jadwal Pagi ${DAYS_INDONESIAN[dayIdx]} sudah memiliki Sunscreen! Anda tidak bisa menambahkan Sunscreen ganda.`);
+        return;
+      }
+    }
+
     const oldSchedule = [...schedule];
 
     // Optimistically update Day / Routine time
@@ -601,45 +722,52 @@ CREATE POLICY "Users can manage their own skincare logs" ON public.skincare_logs
     }
   };
 
-  // Routine Checklist Logger
-  const handleOpenLogModal = (routineTime) => {
-    setLogRoutineTime(routineTime);
-    setLogSkinCondition('Bagus');
-    setLogNotes('');
-    setLogModalOpen(true);
-  };
-
-  const handleLogSubmit = async (e) => {
-    e.preventDefault();
+  // Routine Checklist Logger (Direct Logging)
+  const handleLogDirect = async (routineTime) => {
     if (!user) return;
 
-    const payload = {
+    // Optimistically update local logs state so the UI updates instantly
+    const todayDateStr = formatLocalDate(new Date());
+    const tempLogId = `temp-${Date.now()}`;
+    const newLogItem = {
+      id: tempLogId,
       user_id: user.id,
-      logged_date: formatLocalDate(new Date()),
-      routine_time: logRoutineTime,
-      skin_condition: logSkinCondition,
-      notes: logNotes.trim() || null
+      logged_date: todayDateStr,
+      routine_time: routineTime,
+      skin_condition: 'Selesai',
+      notes: null,
+      created_at: new Date().toISOString()
     };
+    
+    const oldLogs = [...logs];
+    setLogs([newLogItem, ...logs]);
 
-    const tid = toast.loading('Mencatat riwayat skincare...');
+    const tid = toast.loading('Mencatat rutinitas skincare...');
     try {
       const { error } = await supabase
         .from('skincare_logs')
-        .insert([payload]);
+        .insert([{
+          user_id: user.id,
+          logged_date: todayDateStr,
+          routine_time: routineTime,
+          skin_condition: 'Selesai',
+          notes: null
+        }]);
 
       if (error) {
         if (error.code === '23505') {
           toast.error('Rutinitas ini sudah Anda centang hari ini!', { id: tid });
+          setLogs(oldLogs);
           return;
         }
         throw error;
       }
       toast.success('Rutinitas selesai! +5 XP ditambahkan ke Level Dasbor 🎯', { id: tid });
-      setLogModalOpen(false);
       fetchData();
     } catch (err) {
       console.error(err);
       toast.error('Gagal mencatat rutinitas skincare.', { id: tid });
+      setLogs(oldLogs); // Rollback
     }
   };
 
@@ -871,7 +999,7 @@ CREATE POLICY "Users can manage their own skincare logs" ON public.skincare_logs
                         {todayAmLog ? (
                           <div className="flex items-center gap-1.5">
                             <span className="text-[10px] font-bold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-450 px-2 py-0.5 rounded-full border border-emerald-100 dark:border-emerald-900/30 flex items-center gap-0.5">
-                              Selesai {getSkinEmoji(todayAmLog.skin_condition)}
+                              Selesai
                             </span>
                             <button
                               onClick={() => handleDeleteLog(todayAmLog.id)}
@@ -906,7 +1034,7 @@ CREATE POLICY "Users can manage their own skincare logs" ON public.skincare_logs
 
                     {todayAmSchedule.length > 0 && !todayAmLog && (
                       <button
-                        onClick={() => handleOpenLogModal('AM')}
+                        onClick={() => handleLogDirect('AM')}
                         className="w-full py-2.5 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white text-xs font-semibold rounded-xl shadow-md transition-all active:scale-[0.98] cursor-pointer text-center flex items-center justify-center gap-1"
                       >
                         <Check className="w-4 h-4" />
@@ -930,7 +1058,7 @@ CREATE POLICY "Users can manage their own skincare logs" ON public.skincare_logs
                         {todayPmLog ? (
                           <div className="flex items-center gap-1.5">
                             <span className="text-[10px] font-bold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-450 px-2 py-0.5 rounded-full border border-emerald-100 dark:border-emerald-900/30 flex items-center gap-0.5">
-                              Selesai {getSkinEmoji(todayPmLog.skin_condition)}
+                              Selesai
                             </span>
                             <button
                               onClick={() => handleDeleteLog(todayPmLog.id)}
@@ -965,7 +1093,7 @@ CREATE POLICY "Users can manage their own skincare logs" ON public.skincare_logs
 
                     {todayPmSchedule.length > 0 && !todayPmLog && (
                       <button
-                        onClick={() => handleOpenLogModal('PM')}
+                        onClick={() => handleLogDirect('PM')}
                         className="w-full py-2.5 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white text-xs font-semibold rounded-xl shadow-md transition-all active:scale-[0.98] cursor-pointer text-center flex items-center justify-center gap-1"
                       >
                         <Check className="w-4 h-4" />
@@ -1667,93 +1795,6 @@ CREATE POLICY "Users can manage their own skincare logs" ON public.skincare_logs
                     className="flex-1 py-2.5 bg-gradient-to-r from-pink-500 to-rose-600 hover:from-pink-600 hover:to-rose-700 text-white text-xs font-semibold rounded-xl shadow-md transition-all active:scale-[0.98] cursor-pointer text-center"
                   >
                     Simpan Perubahan
-                  </button>
-                </div>
-              </form>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
-
-      {/* Routine Log Completion Modal */}
-      <AnimatePresence>
-        {logModalOpen && (
-          <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 15 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 15 }}
-              className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl max-w-sm w-full shadow-2xl overflow-hidden relative z-50 animate-in fade-in zoom-in-95 duration-200"
-            >
-              <div className="flex items-center justify-between px-6 py-4.5 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/20">
-                <h3 className="text-sm font-bold text-slate-900 dark:text-slate-200 flex items-center gap-2">
-                  <Sparkles className="w-4 h-4 text-emerald-500" />
-                  Selesaikan Skincare ({logRoutineTime})
-                </h3>
-                <button
-                  onClick={() => setLogModalOpen(false)}
-                  className="p-1 text-slate-400 hover:text-slate-605 dark:hover:text-slate-205 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-
-              <form onSubmit={handleLogSubmit} className="p-6 space-y-5 text-left">
-                {/* Skin Condition Selector */}
-                <div className="space-y-2">
-                  <label className="text-[10px] font-extrabold uppercase tracking-wider text-slate-455 dark:text-slate-400">Bagaimana kondisi kulit wajah Anda?</label>
-                  <div className="grid grid-cols-5 gap-2">
-                    {[
-                      { cond: 'Bagus', emoji: '🌟', label: 'Bagus' },
-                      { cond: 'Kering', emoji: '🍂', label: 'Kering' },
-                      { cond: 'Jerawatan', emoji: '🌋', label: 'Jerawat' },
-                      { cond: 'Berminyak', emoji: '💧', label: 'Berminyak' },
-                      { cond: 'Kemerahan', emoji: '🎈', label: 'Merah' }
-                    ].map(item => {
-                      const isSelected = logSkinCondition === item.cond;
-                      return (
-                        <button
-                          key={item.cond}
-                          type="button"
-                          onClick={() => setLogSkinCondition(item.cond)}
-                          className={`flex flex-col items-center justify-center py-2.5 px-1.5 rounded-xl border transition-all cursor-pointer ${
-                            isSelected
-                              ? 'bg-emerald-50 border-emerald-300 dark:bg-emerald-950/20 dark:border-emerald-900 text-emerald-600 dark:text-emerald-400 shadow-xs font-bold scale-[1.03]'
-                              : 'border-slate-200 dark:border-slate-800 text-slate-505 hover:text-slate-705 dark:hover:text-slate-355'
-                          }`}
-                        >
-                          <span className="text-lg mb-0.5">{item.emoji}</span>
-                          <span className="text-[8px] truncate max-w-full text-center">{item.label}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                <div className="space-y-1.5">
-                  <label className="text-[10px] font-extrabold uppercase tracking-wider text-slate-450 dark:text-slate-400">Catatan Jurnal (Kulit/Produk)</label>
-                  <input
-                    type="text"
-                    value={logNotes}
-                    onChange={(e) => setLogNotes(e.target.value)}
-                    placeholder="Opsional, cth: Kulit kerasa lebih terhidrasi"
-                    className="w-full px-3 py-2 text-xs border border-slate-200 dark:border-slate-800 rounded-xl bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-emerald-500"
-                  />
-                </div>
-
-                <div className="flex gap-3 pt-2">
-                  <button
-                    type="button"
-                    onClick={() => setLogModalOpen(false)}
-                    className="flex-1 py-2.5 border border-slate-200 dark:border-slate-800 text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 text-xs font-semibold rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors cursor-pointer text-center"
-                  >
-                    Batal
-                  </button>
-                  <button
-                    type="submit"
-                    className="flex-1 py-2.5 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white text-xs font-semibold rounded-xl shadow-md transition-all active:scale-[0.98] cursor-pointer text-center"
-                  >
-                    Klaim XP & Simpan
                   </button>
                 </div>
               </form>
