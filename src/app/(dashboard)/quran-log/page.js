@@ -65,6 +65,14 @@ export default function QuranLogPage() {
     }
   }, [user]);
 
+  // Load layout mode preference from localStorage on mount
+  useEffect(() => {
+    const savedMode = localStorage.getItem('quran_layout_mode');
+    if (savedMode === 'list' || savedMode === 'grid') {
+      setLayoutMode(savedMode);
+    }
+  }, []);
+
   const fetchData = async () => {
     setLoading(true);
     setTableNeedsMigration(false);
@@ -655,7 +663,7 @@ CREATE POLICY "Users can manage their own quran logs" ON public.quran_logs FOR A
             {/* Layout Toggle buttons */}
             <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 p-0.5 rounded-xl self-end sm:self-auto">
               <button
-                onClick={() => setLayoutMode('list')}
+                onClick={() => { setLayoutMode('list'); localStorage.setItem('quran_layout_mode', 'list'); }}
                 className={`p-1.5 rounded-lg transition-all cursor-pointer ${
                   layoutMode === 'list'
                     ? 'bg-blue-600 text-white shadow-xs dark:bg-blue-600'
@@ -666,7 +674,7 @@ CREATE POLICY "Users can manage their own quran logs" ON public.quran_logs FOR A
                 <List className="w-3.5 h-3.5" />
               </button>
               <button
-                onClick={() => setLayoutMode('grid')}
+                onClick={() => { setLayoutMode('grid'); localStorage.setItem('quran_layout_mode', 'grid'); }}
                 className={`p-1.5 rounded-lg transition-all cursor-pointer ${
                   layoutMode === 'grid'
                     ? 'bg-blue-600 text-white shadow-xs dark:bg-blue-600'
