@@ -32,7 +32,8 @@ import {
   BookOpen,
   Flame,
   Clock,
-  Heart
+  Heart,
+  Dumbbell
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 
@@ -58,6 +59,50 @@ export default function DashboardLayout({ children }) {
     const saved = localStorage.getItem('isSidebarMinimized') === 'true';
     setIsSidebarMinimized(saved);
   }, []);
+
+  // Navigation Links
+  const sidebarLinks = [
+    {
+      name: 'Dashboard',
+      path: '/',
+      icon: LayoutDashboard,
+    },
+    {
+      name: 'Akademik',
+      path: '/academic',
+      icon: GraduationCap,
+    },
+    {
+      name: 'Habitz Forge',
+      path: '/habit-forge',
+      icon: Sparkles,
+    },
+    {
+      name: 'Daily Activity',
+      path: '/daily-activity',
+      icon: ListTodo,
+    },
+    {
+      name: 'Catatan Ngaji',
+      path: '/quran-log',
+      icon: BookOpen,
+    },
+    {
+      name: 'Skincare Routine',
+      path: '/skincare',
+      icon: Heart,
+    },
+    {
+      name: 'Gym Schedule',
+      path: '/gym',
+      icon: Dumbbell,
+    },
+    {
+      name: 'Quick Notes',
+      path: '/notes',
+      icon: StickyNote,
+    },
+  ];
 
   const toggleSidebarMinimize = () => {
     const next = !isSidebarMinimized;
@@ -355,6 +400,11 @@ export default function DashboardLayout({ children }) {
       name: 'Skincare Routine',
       path: '/skincare',
       icon: Heart,
+    },
+    {
+      name: 'Gym Schedule',
+      path: '/gym',
+      icon: Dumbbell,
     },
     {
       name: 'Quick Notes',
